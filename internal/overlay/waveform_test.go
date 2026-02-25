@@ -34,58 +34,46 @@ func TestNormalizedRMSMidRange(t *testing.T) {
 }
 
 func TestWaveformAddSamples(t *testing.T) {
-	w := NewWaveform(400, 60)
+	w := NewWaveform(400, 80)
+	w.AddSamples([]int16{10000, -10000, 5000, -5000})
 
-	// Add samples multiple times
-	for range 50 {
-		w.AddSamples([]int16{10000, -10000, 5000, -5000})
-	}
-
-	// Verify targets are populated
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	nonZero := 0
-	for _, v := range w.targets {
-		if v > 0 {
-			nonZero++
-		}
-	}
-	if nonZero != pointCount {
-		t.Errorf("expected all %d targets to be non-zero after 50 additions, got %d", pointCount, nonZero)
+	if w.amplitude == 0 {
+		t.Error("expected non-zero amplitude after adding samples")
 	}
 }
 
 func TestWaveformReset(t *testing.T) {
-	w := NewWaveform(400, 60)
+	w := NewWaveform(400, 80)
 	w.AddSamples([]int16{10000, -10000})
 	w.Reset()
 
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	for i, v := range w.targets {
-		if v != 0 {
-			t.Errorf("targets[%d] should be 0 after reset, got %f", i, v)
-		}
+	if w.amplitude != 0 {
+		t.Errorf("amplitude should be 0 after reset, got %f", w.amplitude)
 	}
-	for i, v := range w.smoothed {
-		if v != 0 {
-			t.Errorf("smoothed[%d] should be 0 after reset, got %f", i, v)
+	for i := 0; i < waveCount; i++ {
+		if w.waves[i].smoothAmp != 0 {
+			t.Errorf("waves[%d].smoothAmp should be 0 after reset, got %f", i, w.waves[i].smoothAmp)
+		}
+		if w.waves[i].gradientPhase != 0 {
+			t.Errorf("waves[%d].gradientPhase should be 0 after reset, got %f", i, w.waves[i].gradientPhase)
 		}
 	}
 }
 
 func TestWaveformAddEmptySamples(t *testing.T) {
-	w := NewWaveform(400, 60)
+	w := NewWaveform(400, 80)
 	w.AddSamples(nil) // Should not panic
 
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	for i, v := range w.targets {
-		if v != 0 {
-			t.Errorf("targets[%d] should be 0 with no samples, got %f", i, v)
-		}
+	if w.amplitude != 0 {
+		t.Errorf("amplitude should be 0 with no samples, got %f", w.amplitude)
 	}
 }
