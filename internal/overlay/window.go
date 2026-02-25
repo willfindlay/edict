@@ -66,6 +66,8 @@ func (w *Window) Run(done <-chan struct{}) {
 
 	rl.InitWindow(int32(w.cfg.Width), int32(w.cfg.Height), "edict")
 	defer rl.CloseWindow()
+	w.waveform.InitGPU()
+	defer w.waveform.Close()
 	hideFromTaskbar()
 
 	// Must query after InitWindow (needs GLFW context)

@@ -12,28 +12,27 @@ const (
 	baseHeight         = 8.0
 	maxAmplitudeHeight = 45.0
 	waveCount          = 3
-	layerCount         = 5
 )
 
-type layerStyle struct {
-	thick float32
-	alpha float32
-}
-
 type waveSpec struct {
-	glowColor      rl.Color               // halo color (outer glow layers)
-	spatialFreq    float64                // peaks across width (lower = broader)
-	temporalFreq   float64                // breathing speed
-	phaseOffset    float64                // time offset between waves
-	harmonic2Freq  float64                // second harmonic spatial freq
-	harmonic2Amp   float64                // second harmonic amplitude (0-1)
-	harmonic2Speed float64                // second harmonic temporal speed
-	centerYOffset  float64                // vertical offset from center (px)
-	lerpSpeed      float64                // amplitude smoothing speed
-	gradBaseSpeed  float64                // gradient scroll idle speed
-	gradSpeechMul  float64                // gradient scroll speech multiplier
-	gradFreq       float64                // gradient spatial frequency
-	layers         [layerCount]layerStyle // bloom, ultra-glow, glow, body, core
+	glowColor      rl.Color // halo color
+	spatialFreq    float64  // peaks across width (lower = broader)
+	temporalFreq   float64  // breathing speed
+	phaseOffset    float64  // time offset between waves
+	harmonic2Freq  float64  // second harmonic spatial freq
+	harmonic2Amp   float64  // second harmonic amplitude (0-1)
+	harmonic2Speed float64  // second harmonic temporal speed
+	centerYOffset  float64  // vertical offset from center (px)
+	lerpSpeed      float64  // amplitude smoothing speed
+	gradBaseSpeed  float64  // gradient scroll idle speed
+	gradSpeechMul  float64  // gradient scroll speech multiplier
+	gradFreq       float64  // gradient spatial frequency
+	bodyThick      float32  // thickness for body spline
+	coreThick      float32  // thickness for white core spline
+	glowThick      float32  // thickness for glow source (pre-blur)
+	bodyAlpha      float32  // alpha for body
+	coreAlpha      float32  // alpha for white core
+	glowAlpha      float32  // alpha for glow source drawn to RT
 }
 
 type waveState struct {
@@ -56,13 +55,12 @@ var waves = [waveCount]waveSpec{
 		gradBaseSpeed:  0.4,
 		gradSpeechMul:  2.5,
 		gradFreq:       0.8,
-		layers: [layerCount]layerStyle{
-			{thick: 50, alpha: 0.04}, // bloom (additive)
-			{thick: 30, alpha: 0.08}, // ultra-glow (additive)
-			{thick: 16, alpha: 0.20}, // glow (alpha)
-			{thick: 6, alpha: 0.50},  // body (alpha)
-			{thick: 2, alpha: 0.85},  // core (alpha, white)
-		},
+		bodyThick:      6,
+		coreThick:      2,
+		glowThick:      16,
+		bodyAlpha:      0.50,
+		coreAlpha:      0.85,
+		glowAlpha:      0.30,
 	},
 	// Nebula: medium peaks, medium breathing, violet glow.
 	{
@@ -78,13 +76,12 @@ var waves = [waveCount]waveSpec{
 		gradBaseSpeed:  0.5,
 		gradSpeechMul:  3.0,
 		gradFreq:       0.9,
-		layers: [layerCount]layerStyle{
-			{thick: 50, alpha: 0.04},
-			{thick: 30, alpha: 0.08},
-			{thick: 16, alpha: 0.20},
-			{thick: 6, alpha: 0.50},
-			{thick: 2, alpha: 0.85},
-		},
+		bodyThick:      6,
+		coreThick:      2,
+		glowThick:      16,
+		bodyAlpha:      0.50,
+		coreAlpha:      0.85,
+		glowAlpha:      0.30,
 	},
 	// Aurora: many narrow peaks, fast breathing, hot pink glow.
 	{
@@ -100,15 +97,36 @@ var waves = [waveCount]waveSpec{
 		gradBaseSpeed:  0.6,
 		gradSpeechMul:  3.5,
 		gradFreq:       1.0,
-		layers: [layerCount]layerStyle{
-			{thick: 50, alpha: 0.04},
-			{thick: 30, alpha: 0.08},
-			{thick: 16, alpha: 0.20},
-			{thick: 6, alpha: 0.50},
-			{thick: 2, alpha: 0.85},
-		},
+		bodyThick:      6,
+		coreThick:      2,
+		glowThick:      16,
+		bodyAlpha:      0.50,
+		coreAlpha:      0.85,
+		glowAlpha:      0.30,
 	},
 }
+
+// GLSL 330 single-direction Gaussian blur (9-tap, sigma ~4px).
+// The direction uniform selects horizontal (1,0) or vertical (0,1).
+const blurFragSrc = `#version 330
+in vec2 fragTexCoord;
+out vec4 finalColor;
+uniform sampler2D texture0;
+uniform vec2 direction;
+uniform vec2 resolution;
+
+void main() {
+    vec2 texelSize = direction / resolution;
+    float weights[5] = float[](0.2270270270, 0.1945945946, 0.1216216216, 0.0540540541, 0.0162162162);
+    vec4 color = texture(texture0, fragTexCoord) * weights[0];
+    for (int i = 1; i < 5; i++) {
+        vec2 offset = texelSize * float(i) * 2.0;
+        color += texture(texture0, fragTexCoord + offset) * weights[i];
+        color += texture(texture0, fragTexCoord - offset) * weights[i];
+    }
+    finalColor = color;
+}
+`
 
 // Waveform renders audio amplitude as smooth glowing splines.
 type Waveform struct {
@@ -120,6 +138,13 @@ type Waveform struct {
 	time   float64
 	width  int
 	height int
+
+	// GPU resources (render-thread only, created by InitGPU).
+	glowRT     rl.RenderTexture2D
+	blurRT     rl.RenderTexture2D
+	blurShader rl.Shader
+	dirLoc     int32
+	sizeLoc    int32
 }
 
 // NewWaveform creates a waveform renderer for the given dimensions.
@@ -128,6 +153,27 @@ func NewWaveform(width, height int) *Waveform {
 		width:  width,
 		height: height,
 	}
+}
+
+// InitGPU loads GPU resources for the blur bloom pipeline.
+// Must be called from the render thread after rl.InitWindow.
+func (w *Waveform) InitGPU() {
+	w.glowRT = rl.LoadRenderTexture(int32(w.width), int32(w.height))
+	w.blurRT = rl.LoadRenderTexture(int32(w.width), int32(w.height))
+	w.blurShader = rl.LoadShaderFromMemory("", blurFragSrc)
+	w.dirLoc = rl.GetShaderLocation(w.blurShader, "direction")
+	w.sizeLoc = rl.GetShaderLocation(w.blurShader, "resolution")
+	rl.SetShaderValue(w.blurShader, w.sizeLoc,
+		[]float32{float32(w.width), float32(w.height)},
+		rl.ShaderUniformVec2)
+}
+
+// Close frees GPU resources. Must be called from the render thread
+// before rl.CloseWindow.
+func (w *Waveform) Close() {
+	rl.UnloadRenderTexture(w.glowRT)
+	rl.UnloadRenderTexture(w.blurRT)
+	rl.UnloadShader(w.blurShader)
 }
 
 // AddSamples processes incoming audio samples and updates the amplitude.
@@ -157,7 +203,7 @@ func (w *Waveform) Draw() {
 
 	white := rl.Color{R: 255, G: 255, B: 255, A: 255}
 
-	// Pre-compute control points for all waves to avoid recomputing per layer pass.
+	// Pre-compute control points for all waves.
 	type wavePoints struct {
 		points [pointCount + 2]rl.Vector2
 	}
@@ -207,42 +253,19 @@ func (w *Waveform) Draw() {
 		}
 	}
 
-	// Pass 1: Additive blend for bloom + ultra-glow (layers 0-1).
-	// Overlapping glow from different waves brightens additively.
-	rl.BeginBlendMode(rl.BlendAdditive)
-	for wi := 0; wi < waveCount; wi++ {
-		spec := &waves[wi]
-		ws := &w.waves[wi]
-		pts := &allPoints[wi]
-
-		for i := 0; i < pointCount-1; i++ {
-			seg := [4]rl.Vector2{
-				pts.points[i],
-				pts.points[i+1],
-				pts.points[i+2],
-				pts.points[i+3],
-			}
-
-			// Per-segment gradient color from glow color.
-			t := 0.5 + 0.5*math.Sin(ws.gradientPhase+float64(i)*spec.gradFreq)
-			// Vary brightness by lerping glow color with a brighter version.
-			bright := rl.Color{
-				R: uint8(min(int(spec.glowColor.R)+60, 255)),
-				G: uint8(min(int(spec.glowColor.G)+60, 255)),
-				B: uint8(min(int(spec.glowColor.B)+60, 255)),
-				A: 255,
-			}
-			c := lerpColor(spec.glowColor, bright, t)
-
-			for li := 0; li < 2; li++ {
-				layer := &spec.layers[li]
-				rl.DrawSplineSegmentCatmullRom(seg[0], seg[1], seg[2], seg[3], layer.thick, rl.Fade(c, layer.alpha))
-			}
+	// Helper to compute per-segment gradient color.
+	segColor := func(spec *waveSpec, ws *waveState, i int) rl.Color {
+		t := 0.5 + 0.5*math.Sin(ws.gradientPhase+float64(i)*spec.gradFreq)
+		bright := rl.Color{
+			R: uint8(min(int(spec.glowColor.R)+60, 255)),
+			G: uint8(min(int(spec.glowColor.G)+60, 255)),
+			B: uint8(min(int(spec.glowColor.B)+60, 255)),
+			A: 255,
 		}
+		return lerpColor(spec.glowColor, bright, t)
 	}
-	rl.EndBlendMode()
 
-	// Pass 2: Alpha blend for glow, body, core (layers 2-4).
+	// Step 1: Draw body + core to screen (alpha blend).
 	rl.BeginBlendMode(rl.BlendAlpha)
 	for wi := 0; wi < waveCount; wi++ {
 		spec := &waves[wi]
@@ -256,26 +279,64 @@ func (w *Waveform) Draw() {
 				pts.points[i+2],
 				pts.points[i+3],
 			}
-
-			t := 0.5 + 0.5*math.Sin(ws.gradientPhase+float64(i)*spec.gradFreq)
-			bright := rl.Color{
-				R: uint8(min(int(spec.glowColor.R)+60, 255)),
-				G: uint8(min(int(spec.glowColor.G)+60, 255)),
-				B: uint8(min(int(spec.glowColor.B)+60, 255)),
-				A: 255,
-			}
-			c := lerpColor(spec.glowColor, bright, t)
-
-			// Layers 2-3: glow and body use wave color.
-			for li := 2; li < 4; li++ {
-				layer := &spec.layers[li]
-				rl.DrawSplineSegmentCatmullRom(seg[0], seg[1], seg[2], seg[3], layer.thick, rl.Fade(c, layer.alpha))
-			}
-			// Layer 4: core uses white.
-			coreLayer := &spec.layers[4]
-			rl.DrawSplineSegmentCatmullRom(seg[0], seg[1], seg[2], seg[3], coreLayer.thick, rl.Fade(white, coreLayer.alpha))
+			c := segColor(spec, ws, i)
+			rl.DrawSplineSegmentCatmullRom(seg[0], seg[1], seg[2], seg[3], spec.bodyThick, rl.Fade(c, spec.bodyAlpha))
+			rl.DrawSplineSegmentCatmullRom(seg[0], seg[1], seg[2], seg[3], spec.coreThick, rl.Fade(white, spec.coreAlpha))
 		}
 	}
+	rl.EndBlendMode()
+
+	// Step 2: Draw glow source to glowRT.
+	rl.BeginTextureMode(w.glowRT)
+	rl.ClearBackground(rl.Color{R: 0, G: 0, B: 0, A: 0})
+	rl.BeginBlendMode(rl.BlendAlpha)
+	for wi := 0; wi < waveCount; wi++ {
+		spec := &waves[wi]
+		ws := &w.waves[wi]
+		pts := &allPoints[wi]
+
+		for i := 0; i < pointCount-1; i++ {
+			seg := [4]rl.Vector2{
+				pts.points[i],
+				pts.points[i+1],
+				pts.points[i+2],
+				pts.points[i+3],
+			}
+			c := segColor(spec, ws, i)
+			rl.DrawSplineSegmentCatmullRom(seg[0], seg[1], seg[2], seg[3], spec.glowThick, rl.Fade(c, spec.glowAlpha))
+		}
+	}
+	rl.EndBlendMode()
+	rl.EndTextureMode()
+
+	// Render texture source rect (Y-flipped for OpenGL).
+	flippedRect := rl.Rectangle{
+		X: 0, Y: 0,
+		Width:  float32(w.width),
+		Height: -float32(w.height),
+	}
+
+	// Step 3: Horizontal blur (glowRT -> blurRT).
+	rl.BeginTextureMode(w.blurRT)
+	rl.ClearBackground(rl.Color{R: 0, G: 0, B: 0, A: 0})
+	rl.BeginShaderMode(w.blurShader)
+	rl.SetShaderValue(w.blurShader, w.dirLoc, []float32{1, 0}, rl.ShaderUniformVec2)
+	rl.DrawTextureRec(w.glowRT.Texture, flippedRect, rl.Vector2{X: 0, Y: 0}, white)
+	rl.EndShaderMode()
+	rl.EndTextureMode()
+
+	// Step 4: Vertical blur (blurRT -> glowRT).
+	rl.BeginTextureMode(w.glowRT)
+	rl.ClearBackground(rl.Color{R: 0, G: 0, B: 0, A: 0})
+	rl.BeginShaderMode(w.blurShader)
+	rl.SetShaderValue(w.blurShader, w.dirLoc, []float32{0, 1}, rl.ShaderUniformVec2)
+	rl.DrawTextureRec(w.blurRT.Texture, flippedRect, rl.Vector2{X: 0, Y: 0}, white)
+	rl.EndShaderMode()
+	rl.EndTextureMode()
+
+	// Step 5: Composite blurred glow to screen (additive).
+	rl.BeginBlendMode(rl.BlendAdditive)
+	rl.DrawTextureRec(w.glowRT.Texture, flippedRect, rl.Vector2{X: 0, Y: 0}, white)
 	rl.EndBlendMode()
 }
 
