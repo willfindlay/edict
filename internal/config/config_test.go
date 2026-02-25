@@ -10,8 +10,8 @@ import (
 func TestDefault(t *testing.T) {
 	cfg := Default()
 
-	if cfg.Whisper.Host != "127.0.0.1" {
-		t.Errorf("expected whisper host 127.0.0.1, got %s", cfg.Whisper.Host)
+	if cfg.Whisper.Host != "localhost" {
+		t.Errorf("expected whisper host localhost, got %s", cfg.Whisper.Host)
 	}
 	if cfg.Whisper.Port != 9988 {
 		t.Errorf("expected whisper port 9988, got %d", cfg.Whisper.Port)
@@ -25,8 +25,8 @@ func TestDefault(t *testing.T) {
 	if cfg.Audio.SampleRate != 16000 {
 		t.Errorf("expected sample rate 16000, got %d", cfg.Audio.SampleRate)
 	}
-	if cfg.Output.Backend != "ydotool" {
-		t.Errorf("expected backend ydotool, got %s", cfg.Output.Backend)
+	if cfg.Output.Backend != "sendinput" {
+		t.Errorf("expected backend sendinput, got %s", cfg.Output.Backend)
 	}
 	if !cfg.Overlay.Enabled {
 		t.Error("expected overlay enabled by default")
@@ -35,6 +35,7 @@ func TestDefault(t *testing.T) {
 
 func TestDefaultValidates(t *testing.T) {
 	cfg := Default()
+	cfg.Context.WSLDistro = "Ubuntu"
 	if err := cfg.Validate(); err != nil {
 		t.Errorf("default config should validate: %v", err)
 	}
@@ -55,7 +56,10 @@ key = "r"
 mode = "toggle"
 
 [output]
-backend = "xdotool"
+backend = "sendinput"
+
+[context]
+wsl_distro = "Ubuntu"
 `
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.toml")
@@ -83,8 +87,8 @@ backend = "xdotool"
 	if cfg.Input.Mode != "toggle" {
 		t.Errorf("expected mode toggle, got %s", cfg.Input.Mode)
 	}
-	if cfg.Output.Backend != "xdotool" {
-		t.Errorf("expected backend xdotool, got %s", cfg.Output.Backend)
+	if cfg.Output.Backend != "sendinput" {
+		t.Errorf("expected backend sendinput, got %s", cfg.Output.Backend)
 	}
 	// Defaults should be preserved for unset fields
 	if cfg.Audio.SampleRate != 16000 {
@@ -158,6 +162,7 @@ func TestValidateErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Default()
+			cfg.Context.WSLDistro = "Ubuntu"
 			tt.modify(&cfg)
 			err := cfg.Validate()
 			if err == nil {

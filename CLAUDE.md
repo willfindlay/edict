@@ -5,14 +5,13 @@ Speech-to-text for Claude Code. Captures microphone audio, transcribes via local
 ## Build & Test
 
 ```
-make build           # Build binary to ./edict (Linux)
-make build-windows   # Cross-compile to ./edict.exe (requires MinGW)
-make test            # Run all tests
+make build           # Cross-compile to ./edict.exe (requires MinGW)
+make test            # Run all tests (cross-compiled, runs via binfmt_misc)
 make test-v          # Run all tests (verbose)
 make lint            # Run golangci-lint
 make fmt             # Format with gofmt
-make deps            # Install system dependencies (Linux)
-make whisper         # Build whisper.cpp with CUDA + download model
+make deps            # Install build dependencies (WSL2)
+docker compose up -d # Start GPU-accelerated whisper-server
 ```
 
 ## Architecture
@@ -21,21 +20,22 @@ Goroutines: main (raylib overlay), hotkey (gohook listener), pipeline (capture -
 
 ## Platform Support
 
-Linux and Windows are supported via `_linux.go` / `_windows.go` build-tagged files. Platform-specific code is isolated in:
-- `internal/output/` - ydotool/xdotool (Linux) vs SendInput (Windows)
-- `internal/hotkey/` - Linux scancodes vs Windows VK codes
-- `internal/config/` - defaults and backend validation per platform
-- `internal/context/` - /proc scanning (Linux) vs WSL shell-in (Windows)
+Edict runs as a Windows .exe, cross-compiled from WSL2. Platform-specific code uses `_windows.go` build tags in:
+- `internal/output/` - SendInput typing backend
+- `internal/hotkey/` - Windows VK codes
+- `internal/config/` - Windows defaults and backend validation
+- `internal/context/` - WSL shell-in for Claude Code process scanning
 - `cmd/edict/` - signal handling, config paths, home dir resolution
 
-On Windows, edict shells into WSL to detect Claude Code processes and reads context files via `\\wsl.localhost\<distro>\...` UNC paths. The `[context]` config section controls WSL distro and home path.
+Edict shells into WSL to detect Claude Code processes and reads context files via `\\wsl.localhost\<distro>\...` UNC paths. The `[context]` config section controls WSL distro and home path.
 
 ## Build Notes
 
 - `noaudio` build tag is required (and set in Makefile) to avoid duplicate miniaudio symbols between malgo and raylib-go
+- All Makefile targets use `GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc`
 - CGO required: malgo (miniaudio), raylib-go (OpenGL), gohook (libuiohook)
-- Linux: WSLg for audio + display, or native X11/PipeWire
-- Windows: MSYS2/MinGW toolchain for CGO cross-compilation, WASAPI for audio
+- WSL2 host needs MinGW cross-compiler, audio libs, and X11 libs for CGO linking
+- Tests cross-compile to `.exe` and run via WSL2 binfmt_misc
 
 ## Code Standards
 

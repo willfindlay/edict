@@ -1,40 +1,29 @@
-.PHONY: build build-windows test lint fmt clean install run deps whisper test-v
+.PHONY: build test test-v lint fmt clean deps
 
-BINARY := edict
+BINARY := edict.exe
 PKG := ./...
 # noaudio tag disables raylib's built-in miniaudio to avoid duplicate symbols with malgo
 TAGS := -tags noaudio
+WINDOWS_ENV := CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc
 
 build:
-	CGO_ENABLED=1 go build $(TAGS) -o $(BINARY) ./cmd/edict
-
-build-windows:
-	CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build $(TAGS) -o $(BINARY).exe ./cmd/edict
+	$(WINDOWS_ENV) go build $(TAGS) -o $(BINARY) ./cmd/edict
 
 test:
-	CGO_ENABLED=1 go test $(TAGS) $(PKG) -count=1
+	$(WINDOWS_ENV) go test $(TAGS) $(PKG) -count=1
 
 test-v:
-	CGO_ENABLED=1 go test $(TAGS) $(PKG) -count=1 -v
+	$(WINDOWS_ENV) go test $(TAGS) $(PKG) -count=1 -v
 
 lint:
-	golangci-lint run $(TAGS) $(PKG)
+	GOOS=windows golangci-lint run $(TAGS) $(PKG)
 
 fmt:
 	gofmt -w .
 
 clean:
-	rm -f $(BINARY) $(BINARY).exe
+	rm -f $(BINARY)
 	go clean -testcache
-
-install: build
-	install -m 755 $(BINARY) $(GOPATH)/bin/$(BINARY)
-
-run: build
-	./$(BINARY)
 
 deps:
 	./scripts/install-deps.sh
-
-whisper:
-	./scripts/install-whisper.sh

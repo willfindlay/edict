@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "=== Installing edict system dependencies ==="
+echo "=== Installing edict build dependencies ==="
 
 # Audio (PulseAudio/PipeWire)
 sudo pacman -S --needed --noconfirm \
@@ -21,11 +21,6 @@ sudo pacman -S --needed --noconfirm \
     mesa \
     wayland
 
-# Input simulation
-sudo pacman -S --needed --noconfirm \
-    ydotool \
-    xdotool
-
 # Build tools
 sudo pacman -S --needed --noconfirm \
     gcc \
@@ -35,4 +30,3 @@ sudo pacman -S --needed --noconfirm \
 
 echo ""
 echo "=== Dependencies installed ==="
-echo "You may need to start ydotoold: sudo systemctl enable --now ydotool"
