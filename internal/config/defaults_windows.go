@@ -8,12 +8,18 @@ var validBackends = map[string]bool{
 
 const validBackendList = "sendinput"
 
+var validAudioBackends = map[string]bool{
+	"wasapi": true, "dsound": true, "winmm": true,
+}
+
+const validAudioBackendList = "wasapi, dsound, winmm"
+
 // Default returns the default configuration for Windows.
 func Default() Config {
 	return Config{
 		Whisper: WhisperConfig{
 			ServerPath: "whisper-server",
-			Host:       "127.0.0.1",
+			Host:       "localhost",
 			Port:       9988,
 			GPULayers:  -1,
 			Threads:    4,

@@ -40,8 +40,9 @@ type InputConfig struct {
 }
 
 type AudioConfig struct {
-	SampleRate int `toml:"sample_rate"`
-	Channels   int `toml:"channels"`
+	SampleRate int    `toml:"sample_rate"`
+	Channels   int    `toml:"channels"`
+	Backend    string `toml:"backend"`
 }
 
 type OutputConfig struct {
@@ -123,6 +124,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Audio.Channels < 1 || c.Audio.Channels > 2 {
 		errs = append(errs, "audio.channels must be 1 or 2")
+	}
+	if c.Audio.Backend != "" && !validAudioBackends[c.Audio.Backend] {
+		errs = append(errs, fmt.Sprintf("audio.backend must be one of: %s (got %q)", validAudioBackendList, c.Audio.Backend))
 	}
 
 	if !validBackends[c.Output.Backend] {

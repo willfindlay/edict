@@ -148,6 +148,11 @@ func TestValidateErrors(t *testing.T) {
 			modify: func(c *Config) { c.Whisper.Threads = 0 },
 			want:   "whisper.threads",
 		},
+		{
+			name:   "invalid audio backend",
+			modify: func(c *Config) { c.Audio.Backend = "coreaudio" },
+			want:   "audio.backend",
+		},
 	}
 
 	for _, tt := range tests {

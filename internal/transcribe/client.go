@@ -27,6 +27,16 @@ func NewClient(addr string) *Client {
 	}
 }
 
+// Ping checks if the whisper-server is reachable.
+func (c *Client) Ping() error {
+	resp, err := c.httpClient.Get(c.baseURL + "/")
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+	return nil
+}
+
 // inferenceResponse is the JSON structure returned by whisper-server /inference.
 type inferenceResponse struct {
 	Text string `json:"text"`

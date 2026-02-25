@@ -6,6 +6,7 @@ import (
 	"flag"
 	"log"
 	"os"
+	"runtime"
 	"sync"
 	"time"
 
@@ -68,6 +69,10 @@ func main() {
 	}
 
 	whisperClient := transcribe.NewClient(whisperSrv.Addr())
+
+	if err := whisperClient.Ping(); err != nil {
+		log.Fatalf("whisper-server at %s is not reachable: %v\nStart whisper-server with: docker compose up -d", whisperSrv.Addr(), err)
+	}
 
 	// Audio buffer
 	ringBuf := audio.NewRingBuffer(cfg.Audio.SampleRate * 30) // 30 seconds max
@@ -188,6 +193,13 @@ func runPipeline(
 	whisperPrompt *string,
 	cfg config.Config,
 ) {
+	// Pin this goroutine to a single OS thread. WASAPI (Windows) uses COM for
+	// audio device access, and COM must be initialized on the thread that uses
+	// it. Without this, Go's scheduler can migrate the goroutine between OS
+	// threads, causing COM calls in miniaudio to fail.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	var recorder *audio.Recorder
 	var recorderErr error
 
@@ -217,6 +229,7 @@ func runPipeline(
 						audio.RecorderConfig{
 							SampleRate: cfg.Audio.SampleRate,
 							Channels:   cfg.Audio.Channels,
+							Backend:    cfg.Audio.Backend,
 						},
 						func(samples []int16) {
 							ringBuf.Write(samples)

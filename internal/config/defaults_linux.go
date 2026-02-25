@@ -8,6 +8,12 @@ var validBackends = map[string]bool{
 
 const validBackendList = "ydotool, xdotool"
 
+var validAudioBackends = map[string]bool{
+	"pulseaudio": true, "alsa": true, "jack": true,
+}
+
+const validAudioBackendList = "pulseaudio, alsa, jack"
+
 // Default returns the default configuration for Linux.
 func Default() Config {
 	return Config{
