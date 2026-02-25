@@ -2,12 +2,12 @@
 
 package hotkey
 
-// ModifierCodes maps modifier names to Linux input event scancodes.
-var ModifierCodes = map[string]uint16{
-	"alt":   56,  // KEY_LEFTALT
-	"ctrl":  29,  // KEY_LEFTCTRL
-	"shift": 42,  // KEY_LEFTSHIFT
-	"super": 125, // KEY_LEFTMETA
+// ModifierCodes maps modifier names to left/right Linux input event scancodes.
+var ModifierCodes = map[string][2]uint16{
+	"alt":   {56, 100},  // KEY_LEFTALT, KEY_RIGHTALT
+	"ctrl":  {29, 97},   // KEY_LEFTCTRL, KEY_RIGHTCTRL
+	"shift": {42, 54},   // KEY_LEFTSHIFT, KEY_RIGHTSHIFT
+	"super": {125, 126}, // KEY_LEFTMETA, KEY_RIGHTMETA
 }
 
 // KeyCodes maps key names to Linux input event scancodes.

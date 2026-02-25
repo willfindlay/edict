@@ -19,19 +19,19 @@ type Event struct {
 
 // Listener watches for global keyboard events using gohook.
 type Listener struct {
-	keycode  uint16
-	modifier uint16
-	events   chan Event
-	done     chan struct{}
+	keycode   uint16
+	modifiers [2]uint16
+	events    chan Event
+	done      chan struct{}
 }
 
 // NewListener creates a hotkey listener for the given modifier+key combination.
 func NewListener(modifier, key string) *Listener {
 	return &Listener{
-		keycode:  KeyCodes[key],
-		modifier: ModifierCodes[modifier],
-		events:   make(chan Event, 16),
-		done:     make(chan struct{}),
+		keycode:   KeyCodes[key],
+		modifiers: ModifierCodes[modifier],
+		events:    make(chan Event, 16),
+		done:      make(chan struct{}),
 	}
 }
 
@@ -70,10 +70,14 @@ func (l *Listener) Stop() {
 	}
 }
 
+func (l *Listener) isModifier(rawcode uint16) bool {
+	return rawcode == l.modifiers[0] || rawcode == l.modifiers[1]
+}
+
 func (l *Listener) handleEvent(ev hook.Event, modDown *bool) {
 	switch ev.Kind {
 	case hook.KeyDown:
-		if ev.Rawcode == l.modifier {
+		if l.isModifier(ev.Rawcode) {
 			*modDown = true
 		}
 		if ev.Rawcode == l.keycode && *modDown {
@@ -83,7 +87,7 @@ func (l *Listener) handleEvent(ev hook.Event, modDown *bool) {
 			}
 		}
 	case hook.KeyUp:
-		if ev.Rawcode == l.modifier {
+		if l.isModifier(ev.Rawcode) {
 			*modDown = false
 		}
 		if ev.Rawcode == l.keycode {

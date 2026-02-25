@@ -2,12 +2,12 @@
 
 package hotkey
 
-// ModifierCodes maps modifier names to Windows virtual key codes.
-var ModifierCodes = map[string]uint16{
-	"alt":   0xA4, // VK_LMENU
-	"ctrl":  0xA2, // VK_LCONTROL
-	"shift": 0xA0, // VK_LSHIFT
-	"super": 0x5B, // VK_LWIN
+// ModifierCodes maps modifier names to left/right Windows virtual key codes.
+var ModifierCodes = map[string][2]uint16{
+	"alt":   {0xA4, 0xA5}, // VK_LMENU, VK_RMENU
+	"ctrl":  {0xA2, 0xA3}, // VK_LCONTROL, VK_RCONTROL
+	"shift": {0xA0, 0xA1}, // VK_LSHIFT, VK_RSHIFT
+	"super": {0x5B, 0x5C}, // VK_LWIN, VK_RWIN
 }
 
 // KeyCodes maps key names to Windows virtual key codes.
