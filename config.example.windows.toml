@@ -50,6 +50,20 @@ height = 60
 # Target FPS for the overlay
 fps = 60
 
+[preview]
+# Enable live transcription preview during recording
+enabled = true
+# Interval between preview transcriptions (ms, minimum 1000)
+interval_ms = 3000
+# Font size for preview text
+font_size = 20
+# Font path (Segoe UI on Windows)
+font_path = 'C:\Windows\Fonts\segoeui.ttf'
+# Maximum lines before oldest are dropped
+max_lines = 6
+# Padding inside the text box (px)
+padding = 12
+
 [context]
 # WSL distro for auto-detecting Claude Code processes and accessing context files.
 # Edict shells into WSL to scan /proc for CLAUDECODE=1, then reads CLAUDE.md,

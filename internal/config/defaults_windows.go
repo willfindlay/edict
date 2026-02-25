@@ -45,6 +45,14 @@ func Default() Config {
 			Height:  80,
 			FPS:     60,
 		},
+		Preview: PreviewConfig{
+			Enabled:    true,
+			IntervalMs: 3000,
+			FontSize:   20,
+			FontPath:   `C:\Windows\Fonts\segoeui.ttf`,
+			MaxLines:   6,
+			Padding:    12,
+		},
 	}
 }
 

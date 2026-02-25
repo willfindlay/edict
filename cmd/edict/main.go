@@ -87,10 +87,15 @@ func main() {
 	// Overlay
 	done := make(chan struct{})
 	win := overlay.NewWindow(overlay.WindowConfig{
-		Width:   cfg.Overlay.Width,
-		Height:  cfg.Overlay.Height,
-		FPS:     cfg.Overlay.FPS,
-		Enabled: cfg.Overlay.Enabled,
+		Width:          cfg.Overlay.Width,
+		Height:         cfg.Overlay.Height,
+		FPS:            cfg.Overlay.FPS,
+		Enabled:        cfg.Overlay.Enabled,
+		PreviewEnabled: cfg.Preview.Enabled,
+		FontSize:       cfg.Preview.FontSize,
+		FontPath:       cfg.Preview.FontPath,
+		MaxLines:       cfg.Preview.MaxLines,
+		Padding:        cfg.Preview.Padding,
 	})
 
 	// Hotkey listener goroutine
@@ -210,15 +215,25 @@ func runPipeline(
 	// VAD auto-stop signal channel
 	vadStop := make(chan struct{}, 1)
 
+	// Preview transcription cancellation
+	var previewCancel context.CancelFunc
+
 	for {
 		select {
 		case <-ctx.Done():
+			if previewCancel != nil {
+				previewCancel()
+			}
 			if recorder != nil {
 				recorder.Close()
 			}
 			return
 
 		case <-vadStop:
+			if previewCancel != nil {
+				previewCancel()
+				previewCancel = nil
+			}
 			handleStop(recorder, ringBuf, client, typer, win, promptMu, whisperPrompt, cfg)
 
 		case ev := <-listener.Events():
@@ -262,9 +277,68 @@ func runPipeline(
 				win.Commands() <- overlay.Show
 				log.Println("recording...")
 
+				// Spawn preview transcription goroutine
+				if cfg.Preview.Enabled {
+					var previewCtx context.Context
+					previewCtx, previewCancel = context.WithCancel(ctx)
+
+					promptMu.RLock()
+					prompt := *whisperPrompt
+					promptMu.RUnlock()
+
+					go runPreviewTranscription(previewCtx, ringBuf, client, win, prompt, cfg)
+				}
+
 			case input.Stop:
+				if previewCancel != nil {
+					previewCancel()
+					previewCancel = nil
+				}
 				handleStop(recorder, ringBuf, client, typer, win, promptMu, whisperPrompt, cfg)
 			}
+		}
+	}
+}
+
+func runPreviewTranscription(
+	ctx context.Context,
+	ringBuf *audio.RingBuffer,
+	client *transcribe.Client,
+	win *overlay.Window,
+	prompt string,
+	cfg config.Config,
+) {
+	ticker := time.NewTicker(time.Duration(cfg.Preview.IntervalMs) * time.Millisecond)
+	defer ticker.Stop()
+
+	minSamples := cfg.Audio.SampleRate // 1 second minimum
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			samples := ringBuf.Snapshot()
+			if len(samples) < minSamples {
+				continue
+			}
+
+			var wavBuf bytes.Buffer
+			if err := audio.EncodeWAV(&wavBuf, samples, cfg.Audio.SampleRate, cfg.Audio.Channels); err != nil {
+				log.Printf("preview WAV encode failed: %v", err)
+				continue
+			}
+
+			text, err := client.Transcribe(wavBuf.Bytes(), prompt)
+			if err != nil {
+				log.Printf("preview transcription failed: %v", err)
+				continue
+			}
+
+			if text != "" {
+				log.Printf("preview: %q", text)
+			}
+			win.SetPreviewText(text)
 		}
 	}
 }
