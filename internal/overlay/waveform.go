@@ -12,6 +12,7 @@ const (
 	baseHeight         = 8.0
 	maxAmplitudeHeight = 70.0
 	waveCount          = 3
+	ssScale            = 2 // supersampling factor for FBO anti-aliasing
 )
 
 type waveSpec struct {
@@ -110,6 +111,23 @@ var waves = [waveCount]waveSpec{
 	},
 }
 
+// GLSL 330 compositing shader: premultiplies alpha (for correct DWM transparent
+// window output) and applies a super-Gaussian edge fade so waveforms vanish
+// smoothly before the window boundary.
+const compositeFragSrc = `#version 330
+in vec2 fragTexCoord;
+out vec4 finalColor;
+uniform sampler2D texture0;
+
+void main() {
+    vec4 color = texture(texture0, fragTexCoord);
+    color.rgb *= color.a;
+    float normX = abs(fragTexCoord.x * 2.0 - 1.0);
+    float fade = exp(-12.0 * pow(normX * normX, 4.0));
+    finalColor = color * fade;
+}
+`
+
 // GLSL 330 single-direction Gaussian blur (9-tap, sigma ~8px).
 // The direction uniform selects horizontal (1,0) or vertical (0,1).
 const blurFragSrc = `#version 330
@@ -153,11 +171,13 @@ type Waveform struct {
 	height int
 
 	// GPU resources (render-thread only, created by InitGPU).
-	glowRT     rl.RenderTexture2D
-	blurRT     rl.RenderTexture2D
-	blurShader rl.Shader
-	dirLoc     int32
-	sizeLoc    int32
+	glowRT          rl.RenderTexture2D
+	blurRT          rl.RenderTexture2D
+	sceneRT         rl.RenderTexture2D
+	blurShader      rl.Shader
+	compositeShader rl.Shader
+	dirLoc          int32
+	sizeLoc         int32
 }
 
 // NewWaveform creates a waveform renderer for the given dimensions.
@@ -171,13 +191,19 @@ func NewWaveform(width, height int) *Waveform {
 // InitGPU loads GPU resources for the blur bloom pipeline.
 // Must be called from the render thread after rl.InitWindow.
 func (w *Waveform) InitGPU() {
-	w.glowRT = rl.LoadRenderTexture(int32(w.width), int32(w.height))
-	w.blurRT = rl.LoadRenderTexture(int32(w.width), int32(w.height))
+	sw, sh := int32(w.width*ssScale), int32(w.height*ssScale)
+	w.glowRT = rl.LoadRenderTexture(sw, sh)
+	w.blurRT = rl.LoadRenderTexture(sw, sh)
+	w.sceneRT = rl.LoadRenderTexture(sw, sh)
+	rl.SetTextureFilter(w.glowRT.Texture, rl.FilterBilinear)
+	rl.SetTextureFilter(w.blurRT.Texture, rl.FilterBilinear)
+	rl.SetTextureFilter(w.sceneRT.Texture, rl.FilterBilinear)
 	w.blurShader = rl.LoadShaderFromMemory("", blurFragSrc)
+	w.compositeShader = rl.LoadShaderFromMemory("", compositeFragSrc)
 	w.dirLoc = rl.GetShaderLocation(w.blurShader, "direction")
 	w.sizeLoc = rl.GetShaderLocation(w.blurShader, "resolution")
 	rl.SetShaderValue(w.blurShader, w.sizeLoc,
-		[]float32{float32(w.width), float32(w.height)},
+		[]float32{float32(w.width * ssScale), float32(w.height * ssScale)},
 		rl.ShaderUniformVec2)
 }
 
@@ -186,7 +212,9 @@ func (w *Waveform) InitGPU() {
 func (w *Waveform) Close() {
 	rl.UnloadRenderTexture(w.glowRT)
 	rl.UnloadRenderTexture(w.blurRT)
+	rl.UnloadRenderTexture(w.sceneRT)
 	rl.UnloadShader(w.blurShader)
+	rl.UnloadShader(w.compositeShader)
 }
 
 // AddSamples processes incoming audio samples and updates the amplitude.
@@ -211,8 +239,8 @@ func (w *Waveform) Draw() {
 	dt := float64(rl.GetFrameTime())
 	w.time += dt
 
-	centerY := float64(w.height) / 2.0
-	spacing := float64(w.width) / float64(pointCount-1)
+	centerY := float64(w.height*ssScale) / 2.0
+	spacing := float64(w.width*ssScale) / float64(pointCount-1)
 
 	white := rl.Color{R: 255, G: 255, B: 255, A: 255}
 
@@ -255,7 +283,7 @@ func (w *Waveform) Draw() {
 				math.Sin(w.time*spec.harmonic2Speed+spec.phaseOffset*1.3)
 			dy := y1 + spec.harmonic2Amp*y2
 
-			y := centerY + spec.centerYOffset + envelope*env*dy
+			y := centerY + spec.centerYOffset*ssScale + envelope*ssScale*env*dy
 			allPoints[wi].points[i+1] = rl.Vector2{X: float32(x), Y: float32(y)}
 		}
 
@@ -282,7 +310,22 @@ func (w *Waveform) Draw() {
 		return lerpColor(spec.glowColor, bright, t)
 	}
 
-	// Step 1: Draw body + core to screen (alpha blend).
+	// Render texture source rect (Y-flipped for OpenGL) at supersampled resolution.
+	flippedRect := rl.Rectangle{
+		X: 0, Y: 0,
+		Width:  float32(w.width * ssScale),
+		Height: -float32(w.height * ssScale),
+	}
+	// Dest rect at window resolution for downscale compositing.
+	dstRect := rl.Rectangle{
+		X: 0, Y: 0,
+		Width:  float32(w.width),
+		Height: float32(w.height),
+	}
+
+	// Step 1: Draw body + core to sceneRT.
+	rl.BeginTextureMode(w.sceneRT)
+	rl.ClearBackground(rl.Color{R: 0, G: 0, B: 0, A: 0})
 	rl.BeginBlendMode(rl.BlendAlpha)
 	for wi := 0; wi < waveCount; wi++ {
 		spec := &waves[wi]
@@ -297,11 +340,12 @@ func (w *Waveform) Draw() {
 				pts.points[i+3],
 			}
 			c := segColor(spec, ws, i)
-			rl.DrawSplineSegmentCatmullRom(seg[0], seg[1], seg[2], seg[3], spec.bodyThick, rl.Fade(c, spec.bodyAlpha))
-			rl.DrawSplineSegmentCatmullRom(seg[0], seg[1], seg[2], seg[3], spec.coreThick, rl.Fade(white, spec.coreAlpha))
+			rl.DrawSplineSegmentCatmullRom(seg[0], seg[1], seg[2], seg[3], spec.bodyThick*ssScale, rl.Fade(c, spec.bodyAlpha))
+			rl.DrawSplineSegmentCatmullRom(seg[0], seg[1], seg[2], seg[3], spec.coreThick*ssScale, rl.Fade(white, spec.coreAlpha))
 		}
 	}
 	rl.EndBlendMode()
+	rl.EndTextureMode()
 
 	// Step 2: Draw glow source to glowRT.
 	rl.BeginTextureMode(w.glowRT)
@@ -320,20 +364,13 @@ func (w *Waveform) Draw() {
 				pts.points[i+3],
 			}
 			c := segColor(spec, ws, i)
-			rl.DrawSplineSegmentCatmullRom(seg[0], seg[1], seg[2], seg[3], spec.glowThick, rl.Fade(c, spec.glowAlpha))
+			rl.DrawSplineSegmentCatmullRom(seg[0], seg[1], seg[2], seg[3], spec.glowThick*ssScale, rl.Fade(c, spec.glowAlpha))
 		}
 	}
 	rl.EndBlendMode()
 	rl.EndTextureMode()
 
-	// Render texture source rect (Y-flipped for OpenGL).
-	flippedRect := rl.Rectangle{
-		X: 0, Y: 0,
-		Width:  float32(w.width),
-		Height: -float32(w.height),
-	}
-
-	// Single-pass Gaussian blur (H→V) for a tight halo near the splines.
+	// Step 3: Gaussian blur (H then V) for glow halo.
 	rl.BeginTextureMode(w.blurRT)
 	rl.ClearBackground(rl.Color{R: 0, G: 0, B: 0, A: 0})
 	rl.BeginShaderMode(w.blurShader)
@@ -350,12 +387,23 @@ func (w *Waveform) Draw() {
 	rl.EndShaderMode()
 	rl.EndTextureMode()
 
-	// Composite blurred glow to screen (additive, drawn 8x for intensity).
-	rl.BeginBlendMode(rl.BlendAdditive)
+	// Step 4: Composite sceneRT (body+core) to screen through edge-fade shader.
+	// DrawTexturePro downscales from supersampled RT to window size (bilinear filtering = AA).
+	rl.BeginShaderMode(w.compositeShader)
+	rl.BeginBlendMode(rl.BlendAlphaPremultiply)
+	rl.DrawTexturePro(w.sceneRT.Texture, flippedRect, dstRect, rl.Vector2{}, 0, white)
+	rl.EndBlendMode()
+	rl.EndShaderMode()
+
+	// Step 5: Composite glowRT to screen through edge-fade shader (additive RGB, max alpha).
+	rl.SetBlendFactorsSeparate(1, 1, 1, 1, 0x8006, 0x8008) // GL_ONE, GL_ONE, GL_FUNC_ADD, GL_MAX
+	rl.BeginShaderMode(w.compositeShader)
+	rl.BeginBlendMode(rl.BlendCustomSeparate)
 	for range 8 {
-		rl.DrawTextureRec(w.glowRT.Texture, flippedRect, rl.Vector2{X: 0, Y: 0}, white)
+		rl.DrawTexturePro(w.glowRT.Texture, flippedRect, dstRect, rl.Vector2{}, 0, white)
 	}
 	rl.EndBlendMode()
+	rl.EndShaderMode()
 }
 
 // Reset clears all amplitudes.
