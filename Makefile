@@ -2,12 +2,14 @@
 
 BINARY := edict
 PKG := ./...
+# noaudio tag disables raylib's built-in miniaudio to avoid duplicate symbols with malgo
+TAGS := -tags noaudio
 
 build:
-	CGO_ENABLED=1 go build -o $(BINARY) ./cmd/edict
+	CGO_ENABLED=1 go build $(TAGS) -o $(BINARY) ./cmd/edict
 
 test:
-	CGO_ENABLED=1 go test $(PKG) -count=1
+	CGO_ENABLED=1 go test $(TAGS) $(PKG) -count=1
 
 lint:
 	golangci-lint run $(PKG)
