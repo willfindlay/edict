@@ -49,3 +49,12 @@ width = 400
 height = 60
 # Target FPS for the overlay
 fps = 60
+
+[context]
+# WSL distro for auto-detecting Claude Code processes and accessing context files.
+# Edict shells into WSL to scan /proc for CLAUDECODE=1, then reads CLAUDE.md,
+# memory, and skills via \\wsl.localhost\<distro>\... UNC paths.
+# Required on Windows, ignored on Linux.
+# wsl_distro = "Arch"
+# WSL user home (for global skills, memory). Auto-detected via wsl.exe if empty.
+# wsl_home = ""

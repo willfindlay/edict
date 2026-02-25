@@ -16,6 +16,7 @@ type Config struct {
 	Audio   AudioConfig   `toml:"audio"`
 	Output  OutputConfig  `toml:"output"`
 	Overlay OverlayConfig `toml:"overlay"`
+	Context ContextConfig `toml:"context"`
 }
 
 type WhisperConfig struct {
@@ -55,38 +56,12 @@ type OverlayConfig struct {
 	FPS     int  `toml:"fps"`
 }
 
-func Default() Config {
-	return Config{
-		Whisper: WhisperConfig{
-			ServerPath: "whisper-server",
-			Host:       "127.0.0.1",
-			Port:       9988,
-			GPULayers:  -1,
-			Threads:    4,
-		},
-		Hotkey: HotkeyConfig{
-			Modifier: "alt",
-			Key:      "m",
-		},
-		Input: InputConfig{
-			Mode:         "hold",
-			VADThreshold: 0.02,
-			VADSilenceMs: 800,
-		},
-		Audio: AudioConfig{
-			SampleRate: 16000,
-			Channels:   1,
-		},
-		Output: OutputConfig{
-			Backend: "ydotool",
-		},
-		Overlay: OverlayConfig{
-			Enabled: true,
-			Width:   400,
-			Height:  60,
-			FPS:     60,
-		},
-	}
+// ContextConfig controls Claude Code process detection and context file access.
+// On Windows, edict shells into WSL to find Claude Code processes and reads
+// context files via \\wsl.localhost\<distro>\... UNC paths.
+type ContextConfig struct {
+	WSLDistro string `toml:"wsl_distro"`
+	WSLHome   string `toml:"wsl_home"`
 }
 
 func Load(path string) (Config, error) {
@@ -114,10 +89,6 @@ var validModifiers = map[string]bool{
 
 var validModes = map[string]bool{
 	"hold": true, "toggle": true, "auto": true,
-}
-
-var validBackends = map[string]bool{
-	"ydotool": true, "xdotool": true,
 }
 
 func (c *Config) Validate() error {
@@ -155,7 +126,7 @@ func (c *Config) Validate() error {
 	}
 
 	if !validBackends[c.Output.Backend] {
-		errs = append(errs, fmt.Sprintf("output.backend must be one of: ydotool, xdotool (got %q)", c.Output.Backend))
+		errs = append(errs, fmt.Sprintf("output.backend must be one of: %s (got %q)", validBackendList, c.Output.Backend))
 	}
 
 	if c.Overlay.Width < 1 {
@@ -167,6 +138,8 @@ func (c *Config) Validate() error {
 	if c.Overlay.FPS < 1 || c.Overlay.FPS > 240 {
 		errs = append(errs, "overlay.fps must be between 1 and 240")
 	}
+
+	errs = append(errs, validatePlatform(c)...)
 
 	if len(errs) > 0 {
 		return errors.New(strings.Join(errs, "; "))
