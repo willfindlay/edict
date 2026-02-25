@@ -120,8 +120,7 @@ uniform vec2 direction;
 uniform vec2 resolution;
 
 float inBounds(vec2 uv) {
-    vec2 s = step(vec2(0.0), uv) * step(uv, vec2(1.0));
-    return s.x * s.y;
+    return step(0.0, uv.y) * step(uv.y, 1.0);
 }
 
 void main() {
