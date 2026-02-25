@@ -98,6 +98,30 @@ func (b *RingBuffer) Recent(n int) []int16 {
 	return out
 }
 
+// Snapshot returns all samples in chronological order without resetting the buffer.
+func (b *RingBuffer) Snapshot() []int16 {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	n := b.pos
+	if b.full {
+		n = len(b.data)
+	}
+	if n == 0 {
+		return nil
+	}
+
+	out := make([]int16, n)
+	if b.full {
+		copied := copy(out, b.data[b.pos:])
+		copy(out[copied:], b.data[:b.pos])
+	} else {
+		copy(out, b.data[:b.pos])
+	}
+
+	return out
+}
+
 // Reset clears the buffer without deallocating.
 func (b *RingBuffer) Reset() {
 	b.mu.Lock()

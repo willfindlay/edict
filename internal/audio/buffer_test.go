@@ -95,6 +95,46 @@ func TestRingBufferDrainResets(t *testing.T) {
 	assertSamples(t, got, want)
 }
 
+func TestRingBufferSnapshot(t *testing.T) {
+	b := NewRingBuffer(8)
+	b.Write([]int16{10, 20, 30})
+
+	got := b.Snapshot()
+	want := []int16{10, 20, 30}
+	assertSamples(t, got, want)
+
+	// Snapshot should not reset the buffer
+	if b.Len() != 3 {
+		t.Errorf("expected len 3 after snapshot, got %d", b.Len())
+	}
+
+	// Drain should still return the same data
+	got2 := b.Drain()
+	assertSamples(t, got2, want)
+}
+
+func TestRingBufferSnapshotOverflow(t *testing.T) {
+	b := NewRingBuffer(4)
+	b.Write([]int16{1, 2, 3, 4, 5, 6})
+
+	got := b.Snapshot()
+	want := []int16{3, 4, 5, 6}
+	assertSamples(t, got, want)
+
+	// Buffer should still be full after snapshot
+	if b.Len() != 4 {
+		t.Errorf("expected len 4 after snapshot, got %d", b.Len())
+	}
+}
+
+func TestRingBufferSnapshotEmpty(t *testing.T) {
+	b := NewRingBuffer(4)
+	got := b.Snapshot()
+	if got != nil {
+		t.Errorf("expected nil for empty snapshot, got %v", got)
+	}
+}
+
 func TestRingBufferReset(t *testing.T) {
 	b := NewRingBuffer(4)
 	b.Write([]int16{1, 2, 3, 4})

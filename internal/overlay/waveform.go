@@ -230,8 +230,9 @@ func (w *Waveform) AddSamples(samples []int16) {
 	w.amplitude = rms
 }
 
-// Draw renders the waveform splines. Must be called from the raylib render thread.
-func (w *Waveform) Draw() {
+// Draw renders the waveform splines at the given vertical offset.
+// Must be called from the raylib render thread.
+func (w *Waveform) Draw(yOffset float32) {
 	w.mu.Lock()
 	amp := w.amplitude
 	w.mu.Unlock()
@@ -318,7 +319,7 @@ func (w *Waveform) Draw() {
 	}
 	// Dest rect at window resolution for downscale compositing.
 	dstRect := rl.Rectangle{
-		X: 0, Y: 0,
+		X: 0, Y: yOffset,
 		Width:  float32(w.width),
 		Height: float32(w.height),
 	}

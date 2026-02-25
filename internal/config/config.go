@@ -16,6 +16,7 @@ type Config struct {
 	Audio   AudioConfig   `toml:"audio"`
 	Output  OutputConfig  `toml:"output"`
 	Overlay OverlayConfig `toml:"overlay"`
+	Preview PreviewConfig `toml:"preview"`
 	Context ContextConfig `toml:"context"`
 }
 
@@ -55,6 +56,16 @@ type OverlayConfig struct {
 	Width   int  `toml:"width"`
 	Height  int  `toml:"height"`
 	FPS     int  `toml:"fps"`
+}
+
+// PreviewConfig controls the live transcription preview during recording.
+type PreviewConfig struct {
+	Enabled    bool   `toml:"enabled"`
+	IntervalMs int    `toml:"interval_ms"`
+	FontSize   int    `toml:"font_size"`
+	FontPath   string `toml:"font_path"`
+	MaxLines   int    `toml:"max_lines"`
+	Padding    int    `toml:"padding"`
 }
 
 // ContextConfig controls Claude Code process detection and context file access.
@@ -141,6 +152,21 @@ func (c *Config) Validate() error {
 	}
 	if c.Overlay.FPS < 1 || c.Overlay.FPS > 240 {
 		errs = append(errs, "overlay.fps must be between 1 and 240")
+	}
+
+	if c.Preview.Enabled {
+		if c.Preview.IntervalMs < 1000 {
+			errs = append(errs, "preview.interval_ms must be at least 1000")
+		}
+		if c.Preview.FontSize < 1 {
+			errs = append(errs, "preview.font_size must be positive")
+		}
+		if c.Preview.MaxLines < 1 {
+			errs = append(errs, "preview.max_lines must be positive")
+		}
+		if c.Preview.Padding < 0 {
+			errs = append(errs, "preview.padding must be non-negative")
+		}
 	}
 
 	errs = append(errs, validatePlatform(c)...)
