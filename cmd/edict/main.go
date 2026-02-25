@@ -311,7 +311,7 @@ func handleStop(
 		return
 	}
 
-	log.Printf("transcribed: %s", text)
+	log.Printf("transcribed: %q", text)
 
 	// Type result
 	if err := typer.Type(text); err != nil {
