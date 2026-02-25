@@ -51,7 +51,7 @@ var waves = [waveCount]waveSpec{
 		harmonic2Freq:  0.55,
 		harmonic2Amp:   0.3,
 		harmonic2Speed: 1.1,
-		centerYOffset:  -3,
+		centerYOffset:  -8,
 		lerpSpeed:      4.0,
 		gradBaseSpeed:  0.4,
 		gradSpeechMul:  2.5,
@@ -95,7 +95,7 @@ var waves = [waveCount]waveSpec{
 		harmonic2Freq:  1.3,
 		harmonic2Amp:   0.2,
 		harmonic2Speed: 2.2,
-		centerYOffset:  3,
+		centerYOffset:  8,
 		lerpSpeed:      10.0,
 		gradBaseSpeed:  0.6,
 		gradSpeechMul:  3.5,
@@ -182,7 +182,7 @@ func (w *Waveform) Draw() {
 
 			// Gaussian center envelope: peaks at center, tapers at edges.
 			normX := 2.0*float64(i)/float64(pointCount-1) - 1.0
-			env := math.Exp(-2.0 * normX * normX)
+			env := math.Exp(-0.8 * normX * normX)
 
 			// Standing wave: spatial * temporal separation.
 			y1 := math.Sin(float64(i)*spec.spatialFreq) *
