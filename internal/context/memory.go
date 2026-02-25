@@ -13,14 +13,12 @@ func EncodePath(path string) string {
 }
 
 // ExtractMemoryTerms reads the project's auto-memory MEMORY.md and extracts terms.
-func ExtractMemoryTerms(projectDir string) []string {
-	encoded := EncodePath(projectDir)
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil
-	}
+// canonicalProjectDir is always the Linux-format path (for EncodePath compatibility).
+// homeDir is the OS-accessible home directory (UNC on Windows, native on Linux).
+func ExtractMemoryTerms(projectDir, homeDir, canonicalProjectDir string) []string {
+	encoded := EncodePath(canonicalProjectDir)
 
-	memoryPath := filepath.Join(home, ".claude", "projects", encoded, "memory", "MEMORY.md")
+	memoryPath := filepath.Join(homeDir, ".claude", "projects", encoded, "memory", "MEMORY.md")
 	data, err := os.ReadFile(memoryPath)
 	if err != nil {
 		return nil

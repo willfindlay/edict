@@ -150,8 +150,8 @@ func TestDiscoverSkillsFromTestdata(t *testing.T) {
 	// Copy command files
 	os.WriteFile(filepath.Join(claudeDir, "commands", "deploy.md"), []byte("# deploy"), 0o644)
 
-	// Override home to avoid global skills interference
-	names := DiscoverSkills(tmpDir)
+	// Use a non-existent home to avoid global skills interference
+	names := DiscoverSkills(tmpDir, "/nonexistent-home")
 
 	_ = dir // Used for testdata reference
 

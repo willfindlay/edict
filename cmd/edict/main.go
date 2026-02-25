@@ -96,7 +96,7 @@ func main() {
 	go listener.Start()
 
 	// Context scanner goroutine
-	go runContextScanner(ctx, &promptMu, &whisperPrompt)
+	go runContextScanner(ctx, &promptMu, &whisperPrompt, cfg)
 
 	// Pipeline goroutine
 	go runPipeline(ctx, listener, mode, ringBuf, whisperClient, typer, win, &promptMu, &whisperPrompt, cfg)
@@ -141,9 +141,11 @@ func createMode(cfg config.Config) input.Mode {
 	}
 }
 
-func runContextScanner(ctx context.Context, mu *sync.RWMutex, prompt *string) {
+func runContextScanner(ctx context.Context, mu *sync.RWMutex, prompt *string, cfg config.Config) {
+	homeDir := resolveHomeDir(cfg)
+
 	scan := func() {
-		procs := edictctx.ScanClaudeProcesses()
+		procs := scanProcesses(cfg)
 		if len(procs) == 0 {
 			return
 		}
@@ -152,9 +154,9 @@ func runContextScanner(ctx context.Context, mu *sync.RWMutex, prompt *string) {
 		proc := procs[0]
 		projectName := edictctx.ProjectName(proc.CWD)
 		terms := edictctx.ExtractClaudeMDTerms(proc.CWD)
-		memTerms := edictctx.ExtractMemoryTerms(proc.CWD)
+		memTerms := edictctx.ExtractMemoryTerms(proc.CWD, homeDir, proc.CanonicalCWD)
 		terms = append(terms, memTerms...)
-		skillNames := edictctx.DiscoverSkills(proc.CWD)
+		skillNames := edictctx.DiscoverSkills(proc.CWD, homeDir)
 
 		built := edictctx.BuildPrompt(projectName, terms, skillNames)
 

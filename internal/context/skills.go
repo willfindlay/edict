@@ -7,17 +7,13 @@ import (
 )
 
 // DiscoverSkills finds skill and command names from Claude Code skill directories.
-func DiscoverSkills(projectDir string) []string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil
-	}
-
+// homeDir is the OS-accessible home directory (UNC on Windows, native on Linux).
+func DiscoverSkills(projectDir, homeDir string) []string {
 	var names []string
 	seen := make(map[string]bool)
 
-	// Global skills: ~/.claude/skills/*/SKILL.md
-	globalSkills := filepath.Join(home, ".claude", "skills")
+	// Global skills: <home>/.claude/skills/*/SKILL.md
+	globalSkills := filepath.Join(homeDir, ".claude", "skills")
 	names = append(names, discoverSkillNames(globalSkills, seen)...)
 
 	// Project skills: <project>/.claude/skills/*/SKILL.md
