@@ -1,4 +1,4 @@
-.PHONY: build test lint fmt clean install run deps whisper
+.PHONY: build test lint fmt clean install run deps whisper test-v
 
 BINARY := edict
 PKG := ./...
@@ -11,11 +11,14 @@ build:
 test:
 	CGO_ENABLED=1 go test $(TAGS) $(PKG) -count=1
 
+test-v:
+	CGO_ENABLED=1 go test $(TAGS) $(PKG) -count=1 -v
+
 lint:
-	golangci-lint run $(PKG)
+	golangci-lint run $(TAGS) $(PKG)
 
 fmt:
-	gofumpt -w .
+	gofmt -w .
 
 clean:
 	rm -f $(BINARY)
