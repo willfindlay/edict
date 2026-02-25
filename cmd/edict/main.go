@@ -2,12 +2,11 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"flag"
 	"log"
 	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/willfindlay/edict/internal/audio"
@@ -18,8 +17,6 @@ import (
 	"github.com/willfindlay/edict/internal/output"
 	"github.com/willfindlay/edict/internal/overlay"
 	"github.com/willfindlay/edict/internal/transcribe"
-
-	"context"
 )
 
 func main() {
@@ -36,7 +33,7 @@ func main() {
 	defer cancel()
 
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	signalNotify(sigCh)
 	go func() {
 		<-sigCh
 		log.Println("shutting down...")
@@ -116,11 +113,7 @@ func main() {
 
 func loadConfig(path string) (config.Config, error) {
 	if path == "" {
-		candidates := []string{
-			"config.toml",
-			os.ExpandEnv("$HOME/.config/edict/config.toml"),
-		}
-		for _, c := range candidates {
+		for _, c := range configCandidates() {
 			if _, err := os.Stat(c); err == nil {
 				return config.Load(c)
 			}
