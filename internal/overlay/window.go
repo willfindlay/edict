@@ -63,16 +63,15 @@ func (w *Window) Run(done <-chan struct{}) {
 			rl.FlagWindowMousePassthrough,
 	)
 
-	// Position at bottom-center of screen
+	rl.InitWindow(int32(w.cfg.Width), int32(w.cfg.Height), "edict")
+	defer rl.CloseWindow()
+
+	// Must query after InitWindow (needs GLFW context)
 	monitor := rl.GetCurrentMonitor()
 	screenW := rl.GetMonitorWidth(monitor)
 	screenH := rl.GetMonitorHeight(monitor)
 	posX := (screenW - int(w.cfg.Width)) / 2
 	posY := screenH - int(w.cfg.Height) - 40
-
-	rl.InitWindow(int32(w.cfg.Width), int32(w.cfg.Height), "edict")
-	defer rl.CloseWindow()
-
 	rl.SetWindowPosition(posX, posY)
 	rl.SetTargetFPS(int32(w.cfg.FPS))
 
