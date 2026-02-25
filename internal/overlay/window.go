@@ -65,6 +65,7 @@ func (w *Window) Run(done <-chan struct{}) {
 
 	rl.InitWindow(int32(w.cfg.Width), int32(w.cfg.Height), "edict")
 	defer rl.CloseWindow()
+	hideFromTaskbar()
 
 	// Must query after InitWindow (needs GLFW context)
 	monitor := rl.GetCurrentMonitor()
