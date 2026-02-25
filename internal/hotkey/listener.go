@@ -19,13 +19,14 @@ type Event struct {
 
 // Listener watches for global keyboard events using gohook.
 type Listener struct {
-	keycode   uint16
-	modifiers [2]uint16
+	keycode   uint16   // 0 when modifier-only
+	modifiers []uint16 // accepted modifier keycodes
 	events    chan Event
 	done      chan struct{}
 }
 
 // NewListener creates a hotkey listener for the given modifier+key combination.
+// If key is empty, the hotkey triggers on the modifier alone.
 func NewListener(modifier, key string) *Listener {
 	return &Listener{
 		keycode:   KeyCodes[key],
@@ -71,16 +72,29 @@ func (l *Listener) Stop() {
 }
 
 func (l *Listener) isModifier(rawcode uint16) bool {
-	return rawcode == l.modifiers[0] || rawcode == l.modifiers[1]
+	for _, m := range l.modifiers {
+		if rawcode == m {
+			return true
+		}
+	}
+	return false
 }
 
 func (l *Listener) handleEvent(ev hook.Event, modDown *bool) {
+	modOnly := l.keycode == 0
+
 	switch ev.Kind {
 	case hook.KeyDown:
 		if l.isModifier(ev.Rawcode) {
 			*modDown = true
+			if modOnly {
+				select {
+				case l.events <- Event{Type: Press}:
+				default:
+				}
+			}
 		}
-		if ev.Rawcode == l.keycode && *modDown {
+		if !modOnly && ev.Rawcode == l.keycode && *modDown {
 			select {
 			case l.events <- Event{Type: Press}:
 			default:
@@ -89,8 +103,14 @@ func (l *Listener) handleEvent(ev hook.Event, modDown *bool) {
 	case hook.KeyUp:
 		if l.isModifier(ev.Rawcode) {
 			*modDown = false
+			if modOnly {
+				select {
+				case l.events <- Event{Type: Release}:
+				default:
+				}
+			}
 		}
-		if ev.Rawcode == l.keycode {
+		if !modOnly && ev.Rawcode == l.keycode {
 			select {
 			case l.events <- Event{Type: Release}:
 			default:

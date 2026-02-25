@@ -25,11 +25,10 @@ func Default() Config {
 			Threads:    4,
 		},
 		Hotkey: HotkeyConfig{
-			Modifier: "alt",
-			Key:      "m",
+			Modifier: "ralt",
 		},
 		Input: InputConfig{
-			Mode:         "hold",
+			Mode:         "toggle",
 			VADThreshold: 0.02,
 			VADSilenceMs: 800,
 		},
