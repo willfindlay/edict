@@ -10,7 +10,7 @@ import (
 const (
 	pointCount         = 20
 	baseHeight         = 8.0
-	maxAmplitudeHeight = 45.0
+	maxAmplitudeHeight = 70.0
 	waveCount          = 3
 )
 
@@ -23,7 +23,8 @@ type waveSpec struct {
 	harmonic2Amp   float64  // second harmonic amplitude (0-1)
 	harmonic2Speed float64  // second harmonic temporal speed
 	centerYOffset  float64  // vertical offset from center (px)
-	lerpSpeed      float64  // amplitude smoothing speed
+	attackSpeed    float64  // amplitude rise speed (sound onset)
+	decaySpeed     float64  // amplitude fall speed (sound offset)
 	gradBaseSpeed  float64  // gradient scroll idle speed
 	gradSpeechMul  float64  // gradient scroll speech multiplier
 	gradFreq       float64  // gradient spatial frequency
@@ -51,7 +52,8 @@ var waves = [waveCount]waveSpec{
 		harmonic2Amp:   0.3,
 		harmonic2Speed: 1.1,
 		centerYOffset:  -8,
-		lerpSpeed:      4.0,
+		attackSpeed:    8.0,
+		decaySpeed:     2.0,
 		gradBaseSpeed:  0.4,
 		gradSpeechMul:  2.5,
 		gradFreq:       0.8,
@@ -72,7 +74,8 @@ var waves = [waveCount]waveSpec{
 		harmonic2Amp:   0.25,
 		harmonic2Speed: 1.5,
 		centerYOffset:  0,
-		lerpSpeed:      7.0,
+		attackSpeed:    14.0,
+		decaySpeed:     3.5,
 		gradBaseSpeed:  0.5,
 		gradSpeechMul:  3.0,
 		gradFreq:       0.9,
@@ -93,7 +96,8 @@ var waves = [waveCount]waveSpec{
 		harmonic2Amp:   0.2,
 		harmonic2Speed: 2.2,
 		centerYOffset:  8,
-		lerpSpeed:      10.0,
+		attackSpeed:    20.0,
+		decaySpeed:     5.0,
 		gradBaseSpeed:  0.6,
 		gradSpeechMul:  3.5,
 		gradFreq:       1.0,
@@ -223,8 +227,12 @@ func (w *Waveform) Draw() {
 		spec := &waves[wi]
 		ws := &w.waves[wi]
 
-		// Lerp smoothAmp toward current amplitude at this wave's speed.
-		alpha := 1.0 - math.Exp(-spec.lerpSpeed*dt)
+		// Asymmetric lerp: fast attack, slow decay.
+		speed := spec.decaySpeed
+		if amp > ws.smoothAmp {
+			speed = spec.attackSpeed
+		}
+		alpha := 1.0 - math.Exp(-speed*dt)
 		ws.smoothAmp += (amp - ws.smoothAmp) * alpha
 
 		// Advance gradient phase: faster when speaking.
@@ -385,7 +393,7 @@ func normalizedRMS(samples []int16) float64 {
 	rms := math.Sqrt(sum / float64(len(samples)))
 
 	// Apply gain to make visualization more responsive.
-	rms *= 5.0
+	rms *= 8.0
 	if rms > 1.0 {
 		rms = 1.0
 	}

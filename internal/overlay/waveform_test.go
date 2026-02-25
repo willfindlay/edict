@@ -26,7 +26,7 @@ func TestNormalizedRMSCapped(t *testing.T) {
 }
 
 func TestNormalizedRMSMidRange(t *testing.T) {
-	samples := []int16{5000, -5000, 5000, -5000}
+	samples := []int16{2000, -2000, 2000, -2000}
 	rms := normalizedRMS(samples)
 	if rms <= 0 || rms >= 1.0 {
 		t.Errorf("expected mid-range RMS, got %f", rms)
