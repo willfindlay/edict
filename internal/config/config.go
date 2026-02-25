@@ -85,7 +85,10 @@ func Load(path string) (Config, error) {
 }
 
 var validModifiers = map[string]bool{
-	"alt": true, "ctrl": true, "shift": true, "super": true,
+	"alt": true, "lalt": true, "ralt": true,
+	"ctrl": true, "lctrl": true, "rctrl": true,
+	"shift": true, "lshift": true, "rshift": true,
+	"super": true, "lsuper": true, "rsuper": true,
 }
 
 var validModes = map[string]bool{
@@ -103,10 +106,7 @@ func (c *Config) Validate() error {
 	}
 
 	if !validModifiers[c.Hotkey.Modifier] {
-		errs = append(errs, fmt.Sprintf("hotkey.modifier must be one of: alt, ctrl, shift, super (got %q)", c.Hotkey.Modifier))
-	}
-	if c.Hotkey.Key == "" {
-		errs = append(errs, "hotkey.key must not be empty")
+		errs = append(errs, fmt.Sprintf("hotkey.modifier must be one of: alt, lalt, ralt, ctrl, lctrl, rctrl, shift, lshift, rshift, super, lsuper, rsuper (got %q)", c.Hotkey.Modifier))
 	}
 
 	if !validModes[c.Input.Mode] {

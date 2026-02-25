@@ -16,11 +16,14 @@ func TestDefault(t *testing.T) {
 	if cfg.Whisper.Port != 9988 {
 		t.Errorf("expected whisper port 9988, got %d", cfg.Whisper.Port)
 	}
-	if cfg.Hotkey.Modifier != "alt" || cfg.Hotkey.Key != "m" {
-		t.Errorf("expected hotkey alt+m, got %s+%s", cfg.Hotkey.Modifier, cfg.Hotkey.Key)
+	if cfg.Hotkey.Modifier != "ralt" {
+		t.Errorf("expected hotkey modifier ralt, got %s", cfg.Hotkey.Modifier)
 	}
-	if cfg.Input.Mode != "hold" {
-		t.Errorf("expected input mode hold, got %s", cfg.Input.Mode)
+	if cfg.Hotkey.Key != "" {
+		t.Errorf("expected empty hotkey key, got %s", cfg.Hotkey.Key)
+	}
+	if cfg.Input.Mode != "toggle" {
+		t.Errorf("expected input mode toggle, got %s", cfg.Input.Mode)
 	}
 	if cfg.Audio.SampleRate != 16000 {
 		t.Errorf("expected sample rate 16000, got %d", cfg.Audio.SampleRate)
@@ -116,11 +119,6 @@ func TestValidateErrors(t *testing.T) {
 			name:   "invalid modifier",
 			modify: func(c *Config) { c.Hotkey.Modifier = "meta" },
 			want:   "hotkey.modifier",
-		},
-		{
-			name:   "empty key",
-			modify: func(c *Config) { c.Hotkey.Key = "" },
-			want:   "hotkey.key",
 		},
 		{
 			name:   "invalid mode",

@@ -110,7 +110,11 @@ func main() {
 		close(done)
 	}()
 
-	log.Printf("edict ready (hotkey: %s+%s, mode: %s)", cfg.Hotkey.Modifier, cfg.Hotkey.Key, cfg.Input.Mode)
+	hotkey := cfg.Hotkey.Modifier
+	if cfg.Hotkey.Key != "" {
+		hotkey += "+" + cfg.Hotkey.Key
+	}
+	log.Printf("edict ready (hotkey: %s, mode: %s)", hotkey, cfg.Input.Mode)
 
 	// Overlay run blocks on main goroutine (required for OpenGL)
 	win.Run(done)
