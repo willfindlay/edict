@@ -57,10 +57,10 @@ var waves = [waveCount]waveSpec{
 		gradFreq:       0.8,
 		bodyThick:      6,
 		coreThick:      2,
-		glowThick:      16,
+		glowThick:      32,
 		bodyAlpha:      0.50,
 		coreAlpha:      0.85,
-		glowAlpha:      0.30,
+		glowAlpha:      0.70,
 	},
 	// Nebula: medium peaks, medium breathing, violet glow.
 	{
@@ -78,10 +78,10 @@ var waves = [waveCount]waveSpec{
 		gradFreq:       0.9,
 		bodyThick:      6,
 		coreThick:      2,
-		glowThick:      16,
+		glowThick:      32,
 		bodyAlpha:      0.50,
 		coreAlpha:      0.85,
-		glowAlpha:      0.30,
+		glowAlpha:      0.70,
 	},
 	// Aurora: many narrow peaks, fast breathing, hot pink glow.
 	{
@@ -99,14 +99,14 @@ var waves = [waveCount]waveSpec{
 		gradFreq:       1.0,
 		bodyThick:      6,
 		coreThick:      2,
-		glowThick:      16,
+		glowThick:      32,
 		bodyAlpha:      0.50,
 		coreAlpha:      0.85,
-		glowAlpha:      0.30,
+		glowAlpha:      0.70,
 	},
 }
 
-// GLSL 330 single-direction Gaussian blur (9-tap, sigma ~4px).
+// GLSL 330 single-direction Gaussian blur (9-tap, sigma ~8px).
 // The direction uniform selects horizontal (1,0) or vertical (0,1).
 const blurFragSrc = `#version 330
 in vec2 fragTexCoord;
@@ -115,14 +115,24 @@ uniform sampler2D texture0;
 uniform vec2 direction;
 uniform vec2 resolution;
 
+float inBounds(vec2 uv) {
+    vec2 s = step(vec2(0.0), uv) * step(uv, vec2(1.0));
+    return s.x * s.y;
+}
+
 void main() {
     vec2 texelSize = direction / resolution;
-    float weights[5] = float[](0.2270270270, 0.1945945946, 0.1216216216, 0.0540540541, 0.0162162162);
+    float weights[9] = float[](
+        0.10855, 0.10548, 0.09672, 0.08370, 0.06840,
+        0.05276, 0.03840, 0.02637, 0.01710
+    );
     vec4 color = texture(texture0, fragTexCoord) * weights[0];
-    for (int i = 1; i < 5; i++) {
+    for (int i = 1; i < 9; i++) {
         vec2 offset = texelSize * float(i) * 2.0;
-        color += texture(texture0, fragTexCoord + offset) * weights[i];
-        color += texture(texture0, fragTexCoord - offset) * weights[i];
+        vec2 uvPlus = fragTexCoord + offset;
+        vec2 uvMinus = fragTexCoord - offset;
+        color += texture(texture0, uvPlus) * weights[i] * inBounds(uvPlus);
+        color += texture(texture0, uvMinus) * weights[i] * inBounds(uvMinus);
     }
     finalColor = color;
 }
@@ -316,7 +326,7 @@ func (w *Waveform) Draw() {
 		Height: -float32(w.height),
 	}
 
-	// Step 3: Horizontal blur (glowRT -> blurRT).
+	// Single-pass Gaussian blur (H→V) for a tight halo near the splines.
 	rl.BeginTextureMode(w.blurRT)
 	rl.ClearBackground(rl.Color{R: 0, G: 0, B: 0, A: 0})
 	rl.BeginShaderMode(w.blurShader)
@@ -325,7 +335,6 @@ func (w *Waveform) Draw() {
 	rl.EndShaderMode()
 	rl.EndTextureMode()
 
-	// Step 4: Vertical blur (blurRT -> glowRT).
 	rl.BeginTextureMode(w.glowRT)
 	rl.ClearBackground(rl.Color{R: 0, G: 0, B: 0, A: 0})
 	rl.BeginShaderMode(w.blurShader)
@@ -334,9 +343,11 @@ func (w *Waveform) Draw() {
 	rl.EndShaderMode()
 	rl.EndTextureMode()
 
-	// Step 5: Composite blurred glow to screen (additive).
+	// Composite blurred glow to screen (additive, drawn 8x for intensity).
 	rl.BeginBlendMode(rl.BlendAdditive)
-	rl.DrawTextureRec(w.glowRT.Texture, flippedRect, rl.Vector2{X: 0, Y: 0}, white)
+	for range 8 {
+		rl.DrawTextureRec(w.glowRT.Texture, flippedRect, rl.Vector2{X: 0, Y: 0}, white)
+	}
 	rl.EndBlendMode()
 }
 
