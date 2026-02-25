@@ -7,6 +7,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -102,5 +103,25 @@ func (c *Client) Transcribe(wavData []byte, prompt string) (string, error) {
 		return "", fmt.Errorf("decode response: %w", err)
 	}
 
-	return strings.TrimSpace(result.Text), nil
+	return sanitize(result.Text), nil
+}
+
+var multiSpace = regexp.MustCompile(`\s{2,}`)
+
+// sanitize replaces ASCII control characters (0x00-0x1F, 0x7F) with spaces,
+// collapses consecutive whitespace, and trims edges. Whisper models sometimes
+// produce \r, \n, or \t in transcription output, which would cause unintended
+// key events (like Enter) when typed via SendInput.
+func sanitize(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		if r <= 0x1F || r == 0x7F {
+			b.WriteByte(' ')
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	out := multiSpace.ReplaceAllString(b.String(), " ")
+	return strings.TrimSpace(out)
 }

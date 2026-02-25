@@ -110,6 +110,57 @@ func TestClientTranscribeServerError(t *testing.T) {
 	}
 }
 
+func TestSanitize(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"clean text", "Hello, world.", "Hello, world."},
+		{"newline", "Hello\nworld", "Hello world"},
+		{"carriage return", "Hello\rworld", "Hello world"},
+		{"crlf", "Hello\r\nworld", "Hello world"},
+		{"multiple newlines", "Hello\n\n\nworld", "Hello world"},
+		{"tabs", "Hello\tworld", "Hello world"},
+		{"mixed control chars", "Hello\r\n\tworld\n", "Hello world"},
+		{"DEL character", "Hello\x7Fworld", "Hello world"},
+		{"null byte", "Hello\x00world", "Hello world"},
+		{"unicode preserved", "caf\u00e9 na\u00efve \u00fcber", "caf\u00e9 na\u00efve \u00fcber"},
+		{"empty input", "", ""},
+		{"only whitespace", "  \n\r\t  ", ""},
+		{"leading trailing newlines", "\nHello world\n", "Hello world"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitize(tt.input)
+			if got != tt.want {
+				t.Errorf("sanitize(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestClientTranscribeStripsNewlines(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := inferenceResponse{Text: "Hello\nworld\r\nfoo"}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	addr := strings.TrimPrefix(srv.URL, "http://")
+	client := NewClient(addr)
+
+	text, err := client.Transcribe([]byte("fake wav"), "")
+	if err != nil {
+		t.Fatalf("transcribe failed: %v", err)
+	}
+	if text != "Hello world foo" {
+		t.Errorf("expected 'Hello world foo', got %q", text)
+	}
+}
+
 func TestServerWaitReady(t *testing.T) {
 	// Start a TCP listener to simulate a ready server
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
