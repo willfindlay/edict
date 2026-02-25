@@ -1,3 +1,5 @@
+//go:build linux
+
 package output
 
 import (
@@ -6,7 +8,7 @@ import (
 )
 
 func TestBuildArgsYdotool(t *testing.T) {
-	ty := NewTyper(Ydotool, 0)
+	ty := &linuxTyper{backend: Ydotool}
 	args := ty.buildArgs("hello world")
 
 	want := []string{"type", "--", "hello world"}
@@ -14,7 +16,7 @@ func TestBuildArgsYdotool(t *testing.T) {
 }
 
 func TestBuildArgsYdotoolWithDelay(t *testing.T) {
-	ty := NewTyper(Ydotool, 500)
+	ty := &linuxTyper{backend: Ydotool, delayUs: 500}
 	args := ty.buildArgs("test")
 
 	want := []string{"type", "--key-delay", "500", "--", "test"}
@@ -22,7 +24,7 @@ func TestBuildArgsYdotoolWithDelay(t *testing.T) {
 }
 
 func TestBuildArgsXdotool(t *testing.T) {
-	ty := NewTyper(Xdotool, 0)
+	ty := &linuxTyper{backend: Xdotool}
 	args := ty.buildArgs("hello")
 
 	want := []string{"type", "--", "hello"}
@@ -30,7 +32,7 @@ func TestBuildArgsXdotool(t *testing.T) {
 }
 
 func TestBuildArgsXdotoolWithDelay(t *testing.T) {
-	ty := NewTyper(Xdotool, 5000) // 5000 us = 5 ms
+	ty := &linuxTyper{backend: Xdotool, delayUs: 5000}
 	args := ty.buildArgs("test")
 
 	want := []string{"type", "--delay", "5", "--", "test"}
@@ -49,12 +51,13 @@ func TestTypeMockExec(t *testing.T) {
 	var capturedName string
 	var capturedArgs []string
 
-	ty := NewTyper(Ydotool, 0)
-	ty.execCmd = func(name string, args ...string) *exec.Cmd {
-		capturedName = name
-		capturedArgs = args
-		// Return a command that succeeds
-		return exec.Command("true")
+	ty := &linuxTyper{
+		backend: Ydotool,
+		execCmd: func(name string, args ...string) *exec.Cmd {
+			capturedName = name
+			capturedArgs = args
+			return exec.Command("true")
+		},
 	}
 
 	err := ty.Type("hello world")
