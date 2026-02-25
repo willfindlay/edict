@@ -1,0 +1,51 @@
+# Edict configuration
+
+[whisper]
+# Path to whisper-server binary (whisper.cpp HTTP server)
+server_path = "whisper-server"
+# Host and port for the whisper HTTP server
+host = "127.0.0.1"
+port = 9988
+# Path to the GGUF model file
+model_path = ""
+# Number of GPU layers to offload (-1 = all)
+gpu_layers = -1
+# Number of processing threads
+threads = 4
+
+[hotkey]
+# Hotkey to activate recording (modifier+key)
+# Supported modifiers: alt, ctrl, shift, super
+# Supported keys: a-z, 0-9, f1-f12
+modifier = "alt"
+key = "m"
+
+[input]
+# Input mode: "hold" (hold-to-talk), "toggle" (press to start/stop), "auto" (VAD-based)
+mode = "hold"
+# VAD settings (only used in "auto" mode)
+# RMS threshold below which audio is considered silence (0.0-1.0)
+vad_threshold = 0.02
+# Duration of silence (ms) before auto-stopping
+vad_silence_ms = 800
+
+[audio]
+# Sample rate in Hz (whisper expects 16000)
+sample_rate = 16000
+# Number of audio channels (whisper expects 1)
+channels = 1
+
+[output]
+# Typing backend: "ydotool" or "xdotool"
+backend = "ydotool"
+# Delay between keystrokes in microseconds (0 = no delay)
+keystroke_delay_us = 0
+
+[overlay]
+# Enable the waveform overlay window
+enabled = true
+# Overlay dimensions
+width = 400
+height = 60
+# Target FPS for the overlay
+fps = 60
