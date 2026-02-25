@@ -43,7 +43,7 @@ func Default() Config {
 		Overlay: OverlayConfig{
 			Enabled: true,
 			Width:   400,
-			Height:  60,
+			Height:  80,
 			FPS:     60,
 		},
 	}
