@@ -1,4 +1,4 @@
-.PHONY: build test lint fmt clean install run deps whisper test-v
+.PHONY: build build-windows test lint fmt clean install run deps whisper test-v
 
 BINARY := edict
 PKG := ./...
@@ -7,6 +7,9 @@ TAGS := -tags noaudio
 
 build:
 	CGO_ENABLED=1 go build $(TAGS) -o $(BINARY) ./cmd/edict
+
+build-windows:
+	CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build $(TAGS) -o $(BINARY).exe ./cmd/edict
 
 test:
 	CGO_ENABLED=1 go test $(TAGS) $(PKG) -count=1
@@ -21,7 +24,7 @@ fmt:
 	gofmt -w .
 
 clean:
-	rm -f $(BINARY)
+	rm -f $(BINARY) $(BINARY).exe
 	go clean -testcache
 
 install: build
