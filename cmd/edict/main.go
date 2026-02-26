@@ -311,7 +311,7 @@ func runPreviewTranscription(
 	ticker := time.NewTicker(time.Duration(cfg.Preview.IntervalMs) * time.Millisecond)
 	defer ticker.Stop()
 
-	minSamples := cfg.Audio.SampleRate // 1 second minimum
+	minSamples := cfg.Audio.SampleRate / 2 // 0.5 second minimum
 
 	for {
 		select {

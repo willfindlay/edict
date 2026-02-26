@@ -47,7 +47,7 @@ func Default() Config {
 		},
 		Preview: PreviewConfig{
 			Enabled:    true,
-			IntervalMs: 3000,
+			IntervalMs: 1500,
 			FontSize:   20,
 			FontPath:   `C:\Windows\Fonts\segoeui.ttf`,
 			MaxLines:   6,

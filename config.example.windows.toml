@@ -53,8 +53,8 @@ fps = 60
 [preview]
 # Enable live transcription preview during recording
 enabled = true
-# Interval between preview transcriptions (ms, minimum 1000)
-interval_ms = 3000
+# Interval between preview transcriptions (ms, minimum 500)
+interval_ms = 1500
 # Font size for preview text
 font_size = 20
 # Font path (Segoe UI on Windows)
