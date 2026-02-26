@@ -17,7 +17,6 @@ type Config struct {
 	Output  OutputConfig  `toml:"output"`
 	Overlay OverlayConfig `toml:"overlay"`
 	Preview PreviewConfig `toml:"preview"`
-	Context ContextConfig `toml:"context"`
 }
 
 type WhisperConfig struct {
@@ -66,14 +65,6 @@ type PreviewConfig struct {
 	FontPath   string `toml:"font_path"`
 	MaxLines   int    `toml:"max_lines"`
 	Padding    int    `toml:"padding"`
-}
-
-// ContextConfig controls Claude Code process detection and context file access.
-// On Windows, edict shells into WSL to find Claude Code processes and reads
-// context files via \\wsl.localhost\<distro>\... UNC paths.
-type ContextConfig struct {
-	WSLDistro string `toml:"wsl_distro"`
-	WSLHome   string `toml:"wsl_home"`
 }
 
 func Load(path string) (Config, error) {

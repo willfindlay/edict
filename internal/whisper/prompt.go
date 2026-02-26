@@ -1,0 +1,3 @@
+package whisper
+
+const Prompt = `A software developer is dictating commands and notes while using Claude Code, a CLI programming assistant. They use slash commands like /commit, /review, /plan, /compact, /help, /init, /memory, /status, /model, /clear, /doctor, /config, /permissions, /resume, and /test. When they say "slash" followed by a word, it is a slash command written as /word. They reference file paths like src/main.go, ~/.config, /home/user, and ../lib. Common terms: API, CLI, JSON, YAML, TOML, HTTP, REST, gRPC, GraphQL, WebSocket, OAuth, JWT, stdin, stdout, stderr, goroutine, mutex, GitHub, CI/CD, Docker, Kubernetes, PostgreSQL, MongoDB, Redis, TypeScript, JavaScript, Python, Golang, Rust.`

@@ -58,9 +58,5 @@ func Default() Config {
 
 // validatePlatform performs Windows-specific config validation.
 func validatePlatform(c *Config) []string {
-	var errs []string
-	if c.Context.WSLDistro == "" {
-		errs = append(errs, "context.wsl_distro is required on Windows")
-	}
-	return errs
+	return nil
 }
