@@ -10,14 +10,14 @@ import (
 )
 
 var (
-	user32         = syscall.NewLazyDLL("user32.dll")
-	procSendInput  = user32.NewProc("SendInput")
+	user32        = syscall.NewLazyDLL("user32.dll")
+	procSendInput = user32.NewProc("SendInput")
 )
 
 const (
-	inputKeyboard     = 1
-	keyeventfUnicode  = 0x0004
-	keyeventfKeyup    = 0x0002
+	inputKeyboard    = 1
+	keyeventfUnicode = 0x0004
+	keyeventfKeyup   = 0x0002
 )
 
 // kbdInput matches the KEYBDINPUT struct.
