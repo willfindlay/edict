@@ -16,7 +16,7 @@ test-v:
 	$(WINDOWS_ENV) go test $(TAGS) $(PKG) -count=1 -v
 
 lint:
-	GOOS=windows golangci-lint run $(TAGS) $(PKG)
+	$(WINDOWS_ENV) golangci-lint run $(PKG)
 
 fmt:
 	gofmt -w .
