@@ -2,131 +2,81 @@ package audio
 
 import "sync"
 
-// RingBuffer is a thread-safe ring buffer for PCM int16 samples.
-type RingBuffer struct {
-	mu   sync.Mutex
-	data []int16
-	pos  int
-	full bool
+// SampleBuffer is a thread-safe growable buffer for PCM int16 samples.
+// Unlike a ring buffer, it never discards data, supporting unlimited
+// recording duration.
+type SampleBuffer struct {
+	mu      sync.Mutex
+	samples []int16
 }
 
-// NewRingBuffer creates a ring buffer that holds capacity samples.
-func NewRingBuffer(capacity int) *RingBuffer {
-	return &RingBuffer{
-		data: make([]int16, capacity),
+// NewSampleBuffer creates a growable sample buffer pre-allocated for
+// approximately 30 seconds of 16kHz mono audio.
+func NewSampleBuffer() *SampleBuffer {
+	return &SampleBuffer{
+		samples: make([]int16, 0, 16000*30),
 	}
 }
 
-// Write appends samples to the buffer, overwriting oldest data if full.
-func (b *RingBuffer) Write(samples []int16) {
+// Write appends samples to the buffer.
+func (b *SampleBuffer) Write(samples []int16) {
 	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	for _, s := range samples {
-		b.data[b.pos] = s
-		b.pos = (b.pos + 1) % len(b.data)
-		if b.pos == 0 && !b.full {
-			b.full = true
-		}
-	}
+	b.samples = append(b.samples, samples...)
+	b.mu.Unlock()
 }
 
 // Len returns the number of samples currently in the buffer.
-func (b *RingBuffer) Len() int {
+func (b *SampleBuffer) Len() int {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-
-	if b.full {
-		return len(b.data)
-	}
-	return b.pos
+	return len(b.samples)
 }
 
-// Drain returns all samples in chronological order and resets the buffer.
-func (b *RingBuffer) Drain() []int16 {
+// Drain returns all samples and resets the buffer. The returned slice
+// is owned by the caller; the buffer allocates a fresh backing array.
+func (b *SampleBuffer) Drain() []int16 {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	n := b.pos
-	if b.full {
-		n = len(b.data)
-	}
-
-	out := make([]int16, n)
-	if b.full {
-		// Copy from pos to end, then start to pos
-		copied := copy(out, b.data[b.pos:])
-		copy(out[copied:], b.data[:b.pos])
-	} else {
-		copy(out, b.data[:b.pos])
-	}
-
-	b.pos = 0
-	b.full = false
+	out := b.samples
+	b.samples = make([]int16, 0, cap(out))
 	return out
 }
 
-// Recent returns the most recent n samples (or fewer if buffer has less).
-func (b *RingBuffer) Recent(n int) []int16 {
+// Recent returns the most recent n samples (or fewer if the buffer has less).
+func (b *SampleBuffer) Recent(n int) []int16 {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	total := b.pos
-	if b.full {
-		total = len(b.data)
-	}
-	if n > total {
-		n = total
+	if n > len(b.samples) {
+		n = len(b.samples)
 	}
 	if n == 0 {
 		return nil
 	}
 
 	out := make([]int16, n)
-	if b.full {
-		// Start reading from (pos - n) mod cap
-		start := (b.pos - n + len(b.data)) % len(b.data)
-		if start < b.pos {
-			copy(out, b.data[start:b.pos])
-		} else {
-			copied := copy(out, b.data[start:])
-			copy(out[copied:], b.data[:b.pos])
-		}
-	} else {
-		copy(out, b.data[b.pos-n:b.pos])
-	}
+	copy(out, b.samples[len(b.samples)-n:])
 	return out
 }
 
-// Snapshot returns all samples in chronological order without resetting the buffer.
-func (b *RingBuffer) Snapshot() []int16 {
+// Snapshot returns a copy of all samples without resetting the buffer.
+func (b *SampleBuffer) Snapshot() []int16 {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	n := b.pos
-	if b.full {
-		n = len(b.data)
-	}
-	if n == 0 {
+	if len(b.samples) == 0 {
 		return nil
 	}
 
-	out := make([]int16, n)
-	if b.full {
-		copied := copy(out, b.data[b.pos:])
-		copy(out[copied:], b.data[:b.pos])
-	} else {
-		copy(out, b.data[:b.pos])
-	}
-
+	out := make([]int16, len(b.samples))
+	copy(out, b.samples)
 	return out
 }
 
 // Reset clears the buffer without deallocating.
-func (b *RingBuffer) Reset() {
+func (b *SampleBuffer) Reset() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-
-	b.pos = 0
-	b.full = false
+	b.samples = b.samples[:0]
 }

@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-func TestRingBufferWrite(t *testing.T) {
-	b := NewRingBuffer(4)
+func TestSampleBufferWrite(t *testing.T) {
+	b := NewSampleBuffer()
 
 	b.Write([]int16{1, 2, 3})
 	if b.Len() != 3 {
@@ -18,34 +18,26 @@ func TestRingBufferWrite(t *testing.T) {
 	assertSamples(t, got, want)
 }
 
-func TestRingBufferOverwrite(t *testing.T) {
-	b := NewRingBuffer(4)
+func TestSampleBufferGrows(t *testing.T) {
+	b := NewSampleBuffer()
 
-	b.Write([]int16{1, 2, 3, 4, 5, 6})
-	if b.Len() != 4 {
-		t.Errorf("expected len 4, got %d", b.Len())
+	// Write more than the initial pre-allocated capacity.
+	big := make([]int16, 16000*60) // 60 seconds
+	for i := range big {
+		big[i] = int16(i % 32000)
+	}
+	b.Write(big)
+
+	if b.Len() != len(big) {
+		t.Errorf("expected len %d, got %d", len(big), b.Len())
 	}
 
 	got := b.Drain()
-	want := []int16{3, 4, 5, 6}
-	assertSamples(t, got, want)
+	assertSamples(t, got, big)
 }
 
-func TestRingBufferWrapAround(t *testing.T) {
-	b := NewRingBuffer(4)
-
-	b.Write([]int16{1, 2, 3})
-	b.Write([]int16{4, 5})
-	// Buffer: [5, 2, 3, 4] with pos=1, full=true
-	// Chronological: 2, 3, 4, 5
-
-	got := b.Drain()
-	want := []int16{2, 3, 4, 5}
-	assertSamples(t, got, want)
-}
-
-func TestRingBufferRecent(t *testing.T) {
-	b := NewRingBuffer(8)
+func TestSampleBufferRecent(t *testing.T) {
+	b := NewSampleBuffer()
 
 	b.Write([]int16{10, 20, 30, 40, 50})
 
@@ -54,17 +46,8 @@ func TestRingBufferRecent(t *testing.T) {
 	assertSamples(t, got, want)
 }
 
-func TestRingBufferRecentOverflow(t *testing.T) {
-	b := NewRingBuffer(4)
-	b.Write([]int16{1, 2, 3, 4, 5})
-
-	got := b.Recent(3)
-	want := []int16{3, 4, 5}
-	assertSamples(t, got, want)
-}
-
-func TestRingBufferRecentMoreThanAvailable(t *testing.T) {
-	b := NewRingBuffer(8)
+func TestSampleBufferRecentMoreThanAvailable(t *testing.T) {
+	b := NewSampleBuffer()
 	b.Write([]int16{1, 2})
 
 	got := b.Recent(10)
@@ -72,16 +55,16 @@ func TestRingBufferRecentMoreThanAvailable(t *testing.T) {
 	assertSamples(t, got, want)
 }
 
-func TestRingBufferRecentEmpty(t *testing.T) {
-	b := NewRingBuffer(4)
+func TestSampleBufferRecentEmpty(t *testing.T) {
+	b := NewSampleBuffer()
 	got := b.Recent(5)
 	if got != nil {
 		t.Errorf("expected nil, got %v", got)
 	}
 }
 
-func TestRingBufferDrainResets(t *testing.T) {
-	b := NewRingBuffer(4)
+func TestSampleBufferDrainResets(t *testing.T) {
+	b := NewSampleBuffer()
 	b.Write([]int16{1, 2, 3})
 	b.Drain()
 
@@ -95,8 +78,8 @@ func TestRingBufferDrainResets(t *testing.T) {
 	assertSamples(t, got, want)
 }
 
-func TestRingBufferSnapshot(t *testing.T) {
-	b := NewRingBuffer(8)
+func TestSampleBufferSnapshot(t *testing.T) {
+	b := NewSampleBuffer()
 	b.Write([]int16{10, 20, 30})
 
 	got := b.Snapshot()
@@ -113,30 +96,16 @@ func TestRingBufferSnapshot(t *testing.T) {
 	assertSamples(t, got2, want)
 }
 
-func TestRingBufferSnapshotOverflow(t *testing.T) {
-	b := NewRingBuffer(4)
-	b.Write([]int16{1, 2, 3, 4, 5, 6})
-
-	got := b.Snapshot()
-	want := []int16{3, 4, 5, 6}
-	assertSamples(t, got, want)
-
-	// Buffer should still be full after snapshot
-	if b.Len() != 4 {
-		t.Errorf("expected len 4 after snapshot, got %d", b.Len())
-	}
-}
-
-func TestRingBufferSnapshotEmpty(t *testing.T) {
-	b := NewRingBuffer(4)
+func TestSampleBufferSnapshotEmpty(t *testing.T) {
+	b := NewSampleBuffer()
 	got := b.Snapshot()
 	if got != nil {
 		t.Errorf("expected nil for empty snapshot, got %v", got)
 	}
 }
 
-func TestRingBufferReset(t *testing.T) {
-	b := NewRingBuffer(4)
+func TestSampleBufferReset(t *testing.T) {
+	b := NewSampleBuffer()
 	b.Write([]int16{1, 2, 3, 4})
 	b.Reset()
 
@@ -145,8 +114,8 @@ func TestRingBufferReset(t *testing.T) {
 	}
 }
 
-func TestRingBufferConcurrency(t *testing.T) {
-	b := NewRingBuffer(1024)
+func TestSampleBufferConcurrency(t *testing.T) {
+	b := NewSampleBuffer()
 	var wg sync.WaitGroup
 
 	for i := range 10 {
