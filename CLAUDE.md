@@ -1,6 +1,6 @@
 # Edict
 
-Speech-to-text for Claude Code. Captures microphone audio, transcribes via local GPU-accelerated Whisper, and types the result into the focused terminal. Claude Code-aware: scans running processes, CLAUDE.md files, memory files, and skill definitions to build domain-specific Whisper prompts.
+Speech-to-text for Claude Code. Captures microphone audio, transcribes via local GPU-accelerated Whisper, and types the result into the focused terminal. Uses a static Whisper prompt tuned for developer speech, slash commands, and shell paths.
 
 ## Build & Test
 
@@ -16,7 +16,7 @@ docker compose up -d # Start GPU-accelerated whisper-server
 
 ## Architecture
 
-Goroutines: main (raylib overlay), hotkey (gohook listener), pipeline (capture -> transcribe -> type), context (periodic Claude Code scan at 30s intervals).
+Goroutines: main (raylib overlay), hotkey (gohook listener), pipeline (capture -> transcribe -> type).
 
 ## Platform Support
 
@@ -24,10 +24,7 @@ Edict runs as a Windows .exe, cross-compiled from WSL2. Platform-specific code u
 - `internal/output/` - SendInput typing backend
 - `internal/hotkey/` - Windows VK codes
 - `internal/config/` - Windows defaults and backend validation
-- `internal/context/` - WSL shell-in for Claude Code process scanning
-- `cmd/edict/` - signal handling, config paths, home dir resolution
-
-Edict shells into WSL to detect Claude Code processes and reads context files via `\\wsl.localhost\<distro>\...` UNC paths. The `[context]` config section controls WSL distro and home path.
+- `cmd/edict/` - signal handling, config paths
 
 ## Build Notes
 

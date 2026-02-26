@@ -4,20 +4,20 @@ import (
 	"bytes"
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"runtime"
-	"sync"
 	"time"
 
 	"github.com/willfindlay/edict/internal/audio"
 	"github.com/willfindlay/edict/internal/config"
-	edictctx "github.com/willfindlay/edict/internal/context"
 	"github.com/willfindlay/edict/internal/hotkey"
 	"github.com/willfindlay/edict/internal/input"
 	"github.com/willfindlay/edict/internal/output"
 	"github.com/willfindlay/edict/internal/overlay"
 	"github.com/willfindlay/edict/internal/transcribe"
+	"github.com/willfindlay/edict/internal/whisper"
 )
 
 func main() {
@@ -80,10 +80,6 @@ func main() {
 	// Input mode
 	mode := createMode(cfg)
 
-	// Context scanner state
-	var promptMu sync.RWMutex
-	var whisperPrompt string
-
 	// Overlay
 	done := make(chan struct{})
 	win := overlay.NewWindow(overlay.WindowConfig{
@@ -102,11 +98,8 @@ func main() {
 	listener := hotkey.NewListener(cfg.Hotkey.Modifier, cfg.Hotkey.Key)
 	go listener.Start()
 
-	// Context scanner goroutine
-	go runContextScanner(ctx, &promptMu, &whisperPrompt, cfg)
-
 	// Pipeline goroutine
-	go runPipeline(ctx, listener, mode, ringBuf, whisperClient, typer, win, &promptMu, &whisperPrompt, cfg)
+	go runPipeline(ctx, listener, mode, ringBuf, whisperClient, typer, win, cfg)
 
 	// Wait for shutdown in main goroutine, running overlay event loop
 	go func() {
@@ -132,7 +125,11 @@ func loadConfig(path string) (config.Config, error) {
 				return config.Load(c)
 			}
 		}
-		return config.Default(), nil
+		cfg := config.Default()
+		if err := cfg.Validate(); err != nil {
+			return cfg, fmt.Errorf("validate default config: %w", err)
+		}
+		return cfg, nil
 	}
 	return config.Load(path)
 }
@@ -148,48 +145,6 @@ func createMode(cfg config.Config) input.Mode {
 	}
 }
 
-func runContextScanner(ctx context.Context, mu *sync.RWMutex, prompt *string, cfg config.Config) {
-	homeDir := resolveHomeDir(cfg)
-
-	scan := func() {
-		procs := scanProcesses(cfg)
-		if len(procs) == 0 {
-			return
-		}
-
-		// Use the first detected project
-		proc := procs[0]
-		projectName := edictctx.ProjectName(proc.CWD)
-		terms := edictctx.ExtractClaudeMDTerms(proc.CWD)
-		memTerms := edictctx.ExtractMemoryTerms(proc.CWD, homeDir, proc.CanonicalCWD)
-		terms = append(terms, memTerms...)
-		skillNames := edictctx.DiscoverSkills(proc.CWD, homeDir)
-
-		built := edictctx.BuildPrompt(projectName, terms, skillNames)
-
-		mu.Lock()
-		*prompt = built
-		mu.Unlock()
-
-		log.Printf("context updated: project=%s, terms=%d, skills=%d", projectName, len(terms), len(skillNames))
-	}
-
-	// Initial scan
-	scan()
-
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			scan()
-		}
-	}
-}
-
 func runPipeline(
 	ctx context.Context,
 	listener *hotkey.Listener,
@@ -198,8 +153,6 @@ func runPipeline(
 	client *transcribe.Client,
 	typer output.Typer,
 	win *overlay.Window,
-	promptMu *sync.RWMutex,
-	whisperPrompt *string,
 	cfg config.Config,
 ) {
 	// Pin this goroutine to a single OS thread. WASAPI (Windows) uses COM for
@@ -234,7 +187,7 @@ func runPipeline(
 				previewCancel()
 				previewCancel = nil
 			}
-			handleStop(recorder, ringBuf, client, typer, win, promptMu, whisperPrompt, cfg)
+			handleStop(recorder, ringBuf, client, typer, win, cfg)
 
 		case ev := <-listener.Events():
 			action := mode.HandleEvent(ev)
@@ -281,12 +234,7 @@ func runPipeline(
 				if cfg.Preview.Enabled {
 					var previewCtx context.Context
 					previewCtx, previewCancel = context.WithCancel(ctx)
-
-					promptMu.RLock()
-					prompt := *whisperPrompt
-					promptMu.RUnlock()
-
-					go runPreviewTranscription(previewCtx, ringBuf, client, win, prompt, cfg)
+					go runPreviewTranscription(previewCtx, ringBuf, client, win, cfg)
 				}
 
 			case input.Stop:
@@ -294,7 +242,7 @@ func runPipeline(
 					previewCancel()
 					previewCancel = nil
 				}
-				handleStop(recorder, ringBuf, client, typer, win, promptMu, whisperPrompt, cfg)
+				handleStop(recorder, ringBuf, client, typer, win, cfg)
 			}
 		}
 	}
@@ -305,7 +253,6 @@ func runPreviewTranscription(
 	ringBuf *audio.SampleBuffer,
 	client *transcribe.Client,
 	win *overlay.Window,
-	prompt string,
 	cfg config.Config,
 ) {
 	ticker := time.NewTicker(time.Duration(cfg.Preview.IntervalMs) * time.Millisecond)
@@ -329,7 +276,7 @@ func runPreviewTranscription(
 				continue
 			}
 
-			text, err := client.Transcribe(wavBuf.Bytes(), prompt)
+			text, err := client.Transcribe(wavBuf.Bytes(), whisper.Prompt)
 			if err != nil {
 				log.Printf("preview transcription failed: %v", err)
 				continue
@@ -349,8 +296,6 @@ func handleStop(
 	client *transcribe.Client,
 	typer output.Typer,
 	win *overlay.Window,
-	promptMu *sync.RWMutex,
-	whisperPrompt *string,
 	cfg config.Config,
 ) {
 	if recorder != nil {
@@ -371,14 +316,9 @@ func handleStop(
 		return
 	}
 
-	// Get current prompt
-	promptMu.RLock()
-	prompt := *whisperPrompt
-	promptMu.RUnlock()
-
 	// Transcribe
 	log.Println("transcribing...")
-	text, err := client.Transcribe(wavBuf.Bytes(), prompt)
+	text, err := client.Transcribe(wavBuf.Bytes(), whisper.Prompt)
 	if err != nil {
 		log.Printf("transcription failed: %v", err)
 		return

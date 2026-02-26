@@ -38,7 +38,6 @@ func TestDefault(t *testing.T) {
 
 func TestDefaultValidates(t *testing.T) {
 	cfg := Default()
-	cfg.Context.WSLDistro = "Ubuntu"
 	if err := cfg.Validate(); err != nil {
 		t.Errorf("default config should validate: %v", err)
 	}
@@ -60,9 +59,6 @@ mode = "toggle"
 
 [output]
 backend = "sendinput"
-
-[context]
-wsl_distro = "Ubuntu"
 `
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.toml")
@@ -160,7 +156,6 @@ func TestValidateErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Default()
-			cfg.Context.WSLDistro = "Ubuntu"
 			tt.modify(&cfg)
 			err := cfg.Validate()
 			if err == nil {
