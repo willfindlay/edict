@@ -75,7 +75,7 @@ func main() {
 	}
 
 	// Audio buffer
-	ringBuf := audio.NewRingBuffer(cfg.Audio.SampleRate * 30) // 30 seconds max
+	ringBuf := audio.NewSampleBuffer()
 
 	// Input mode
 	mode := createMode(cfg)
@@ -194,7 +194,7 @@ func runPipeline(
 	ctx context.Context,
 	listener *hotkey.Listener,
 	mode input.Mode,
-	ringBuf *audio.RingBuffer,
+	ringBuf *audio.SampleBuffer,
 	client *transcribe.Client,
 	typer output.Typer,
 	win *overlay.Window,
@@ -302,7 +302,7 @@ func runPipeline(
 
 func runPreviewTranscription(
 	ctx context.Context,
-	ringBuf *audio.RingBuffer,
+	ringBuf *audio.SampleBuffer,
 	client *transcribe.Client,
 	win *overlay.Window,
 	prompt string,
@@ -345,7 +345,7 @@ func runPreviewTranscription(
 
 func handleStop(
 	recorder *audio.Recorder,
-	ringBuf *audio.RingBuffer,
+	ringBuf *audio.SampleBuffer,
 	client *transcribe.Client,
 	typer output.Typer,
 	win *overlay.Window,
