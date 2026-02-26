@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  GO_VERSION: "1.25.x"
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "1"
+      GOOS: windows
+      GOARCH: amd64
+      CC: x86_64-w64-mingw32-gcc
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Install MinGW and Wine
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64-x86-64 wine64
+      - name: Run tests
+        run: go test -exec wine64 -tags noaudio -count=1 ./...
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "1"
+      GOOS: windows
+      GOARCH: amd64
+      CC: x86_64-w64-mingw32-gcc
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Install MinGW
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64-x86-64
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.10
+
+  fmt:
+    name: fmt
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "0"
+      GOOS: linux
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "Files not formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
