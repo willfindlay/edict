@@ -155,8 +155,8 @@ func (c *Config) Validate() error {
 	}
 
 	if c.Preview.Enabled {
-		if c.Preview.IntervalMs < 1000 {
-			errs = append(errs, "preview.interval_ms must be at least 1000")
+		if c.Preview.IntervalMs < 500 {
+			errs = append(errs, "preview.interval_ms must be at least 500")
 		}
 		if c.Preview.FontSize < 1 {
 			errs = append(errs, "preview.font_size must be positive")
