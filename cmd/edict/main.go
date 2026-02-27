@@ -60,7 +60,7 @@ func main() {
 	if cfg.Whisper.ModelPath != "" {
 		log.Println("starting whisper-server...")
 		if err := whisperSrv.Start(ctx); err != nil {
-			log.Fatalf("whisper-server: %v", err)
+			log.Fatalf("whisper-server: %v", err) //nolint:gocritic // defers are cleanup; process is exiting
 		}
 		defer whisperSrv.Stop()
 		log.Println("whisper-server ready")

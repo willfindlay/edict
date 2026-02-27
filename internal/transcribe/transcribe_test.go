@@ -30,7 +30,7 @@ func TestClientTranscribe(t *testing.T) {
 		if err != nil {
 			t.Fatalf("get file: %v", err)
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 
 		data, _ := io.ReadAll(file)
 		if len(data) == 0 {
@@ -44,7 +44,7 @@ func TestClientTranscribe(t *testing.T) {
 
 		resp := inferenceResponse{Text: " Hello, world. "}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer srv.Close()
 
@@ -75,7 +75,7 @@ func TestClientTranscribeNoPrompt(t *testing.T) {
 
 		resp := inferenceResponse{Text: "some text"}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer srv.Close()
 
@@ -94,7 +94,7 @@ func TestClientTranscribeNoPrompt(t *testing.T) {
 func TestClientTranscribeServerError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("internal error"))
+		_, _ = w.Write([]byte("internal error"))
 	}))
 	defer srv.Close()
 
@@ -145,7 +145,7 @@ func TestClientTranscribeStripsNewlines(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := inferenceResponse{Text: "Hello\nworld\r\nfoo"}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer srv.Close()
 
@@ -167,12 +167,12 @@ func TestServerWaitReady(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	addr := ln.Addr().String()
 	host, port, _ := net.SplitHostPort(addr)
 	var portNum int
-	fmt.Sscanf(port, "%d", &portNum)
+	_, _ = fmt.Sscanf(port, "%d", &portNum)
 
 	srv := NewServer(ServerConfig{
 		Host: host,

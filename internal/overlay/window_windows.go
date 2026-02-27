@@ -27,9 +27,9 @@ func hideFromTaskbar() {
 	hwnd := rl.GetWindowHandle()
 	style, _, _ := procGetWindowLong.Call(uintptr(hwnd), gwlExStyle)
 	style = (style | wsExToolWindow) &^ wsExAppWindow
-	procSetWindowLong.Call(uintptr(hwnd), gwlExStyle, style)
+	_, _, _ = procSetWindowLong.Call(uintptr(hwnd), gwlExStyle, style)
 
 	// Force Windows to re-read the style by toggling visibility.
-	procShowWindow.Call(uintptr(hwnd), 0) // SW_HIDE
-	procShowWindow.Call(uintptr(hwnd), 5) // SW_SHOW
+	_, _, _ = procShowWindow.Call(uintptr(hwnd), 0) // SW_HIDE
+	_, _, _ = procShowWindow.Call(uintptr(hwnd), 5) // SW_SHOW
 }

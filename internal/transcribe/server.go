@@ -90,7 +90,7 @@ func (s *Server) waitReady(ctx context.Context, timeout time.Duration) error {
 
 		conn, err := net.DialTimeout("tcp", s.addr, 500*time.Millisecond)
 		if err == nil {
-			conn.Close()
+			_ = conn.Close()
 			return nil
 		}
 		time.Sleep(200 * time.Millisecond)

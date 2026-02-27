@@ -118,7 +118,7 @@ func (r *Recorder) Stop() {
 		return
 	}
 
-	r.device.Stop()
+	_ = r.device.Stop()
 	r.device.Uninit()
 	r.device = nil
 	r.running = false
