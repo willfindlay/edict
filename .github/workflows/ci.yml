@@ -26,9 +26,9 @@ jobs:
       - name: Install MinGW and Wine
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-mingw-w64-x86-64 wine64
+          sudo apt-get install -y gcc-mingw-w64-x86-64 wine
       - name: Run tests
-        run: go test -exec wine64 -tags noaudio -count=1 ./...
+        run: go test -exec wine -tags noaudio -count=1 ./...
 
   lint:
     name: lint
